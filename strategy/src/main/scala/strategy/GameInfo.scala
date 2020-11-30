@@ -23,7 +23,7 @@ class GameInfo(val pw: PlayerView) {
 
   val me: Player = pw.players.find(_.id == pw.myId).get
   val enemies: Seq[Player] = pw.players.filter(_.id != pw.myId)
-
+  val baseArea:Int = 30
 
   val entitiesByPlayer: Map[Player, Seq[Entity]] =
     pw.players.map(pl => (pl, pw.entities.filter(x => x.playerId.nonEmpty && x.playerId.get == pl.id))).toMap
@@ -38,7 +38,10 @@ class GameInfo(val pw: PlayerView) {
     case _ => false
   })
 
-  val my: Map[EntityType, Seq[Entity]] = entitiesByPlayer(me).groupBy(_.entityType)
+
+  private val pmy: Map[EntityType, Seq[Entity]] = entitiesByPlayer(me).groupBy(_.entityType)
+
+  def my(e:EntityType):Seq[Entity] = pmy.getOrElse(e, Seq())
 
   val entitiesMap:ArrayGrid[Option[Entity]] = new ArrayGrid[Option[Entity]](Array.fill[Option[Entity]](pw.mapSize * pw.mapSize)(None), (pw.mapSize, pw.mapSize))
   pw.entities.foreach(e => {
