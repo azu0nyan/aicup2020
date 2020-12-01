@@ -1,6 +1,8 @@
 import model.{Entity, EntityAction, EntityProperties, EntityType, Vec2Int}
 import model.EntityType._
 
+import scala.collection.mutable
+
 package object strategy {
 
   type ActionMap = Map[Int, EntityAction]
@@ -19,6 +21,16 @@ package object strategy {
     (for(i <- 0 until size) yield Seq((x -1, y + i), (x + size, y + i), (x + i, y - 1), (x + i, y + size))).flatten
       .filter{ case (x, y) =>x >=0 && y >= 0 && x < maxX && y < maxY}
 
+  def cellsInRange(x:Int, y:Int, size:Int):Seq[(Int, Int)] = {
+    val res = mutable.Buffer[(Int, Int)]()
+    for( i <- (x - size) to x; j <- 0 to size){
+      res.append((i + j, y - i + j))
+    }
+    for( i<- (x - size + 1) to x; j <- 0 until size){
+      res.append((i + j, y - i - 1 + j))
+    }
+    res.toSeq
+  }
   def sqContains(rx:Int, ry:Int, size:Int, px:Int, py:Int):Boolean = rx <= px && ry <= py && px < rx + size && py < ry + size
 
   def closestTo(x:Int,y:Int, ent:Seq[Entity]) :Entity = ent.minBy(e => e.position.distanceTo((x, y)))
