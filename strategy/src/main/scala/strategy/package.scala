@@ -7,9 +7,7 @@ package object strategy {
 
   type ActionMap = Map[Int, EntityAction]
 
-  var entityProperties: Map[EntityType, EntityProperties] = _
-
-  implicit def EntityTypeToProperties(e: EntityType): EntityProperties = entityProperties(e)
+  implicit def EntityTypeToProperties(e: EntityType): EntityProperties = GameInfo.entityProperties(e)
 
   implicit def toVec2Int(x: (Int, Int)): Vec2Int = Vec2Int(x._1, x._2)
 
@@ -41,7 +39,7 @@ package object strategy {
     def distanceTo(ot:Vec2Int) :Int = math.abs(x.x - ot.x) + math.abs(x.y - ot.y)
   }
 
-  def haveResourcesFor(b: EntityType)(implicit g: GameInfo): Boolean = b.cost <= g.myResources
+  def haveResourcesFor(b: EntityType)(implicit g: GameInfo): Boolean = b.initialCost <= g.myResources
 
   val unitToBuilderBase: Map[EntityType, EntityType] = Map(
     BUILDER_UNIT -> BUILDER_BASE,

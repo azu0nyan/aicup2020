@@ -2,7 +2,21 @@ package strategy
 
 import helpers.ArrayGrid
 import model.EntityType._
-import model.{Entity, EntityType, Player, PlayerView}
+import model.{Entity, EntityProperties, EntityType, Player, PlayerView}
+
+object GameInfo{
+
+
+
+  var entityPrice: Map[EntityType, Int] = Map()
+  var entityProperties:Map[EntityType, EntityProperties] = Map()
+
+  def firstRead(pw:PlayerView) :Unit= {
+    entityProperties = pw.entityProperties
+    entityPrice = pw.entityProperties.map { case (entityType, properties) => (entityType, properties.initialCost) }
+  }
+}
+
 
 class GameInfo(val pw: PlayerView) {
 
@@ -85,7 +99,6 @@ class GameInfo(val pw: PlayerView) {
   val populationMax: Int = entitiesByPlayer(me).map(_.entityType.populationProvide).sum
 
 
-  val entityPrice: Map[EntityType, Int] = pw.entityProperties.map { case (entityType, properties) => (entityType, properties.cost) }
 
 
   ///VARIABLES
