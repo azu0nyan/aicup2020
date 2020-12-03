@@ -19,7 +19,9 @@ trait Grid[T] {
 
   @inline def valueAt(flat:Int):T = valueAt(fromFlatIndex(flat))
 
-  @inline def validIndex(pos: Vec2Int): Boolean = pos.x >= 0 && pos.y >= 0 && pos. x < resolution.x && pos.y < resolution.y
+  @inline def validIndex(x:Int, y:Int): Boolean =
+    x >= 0 && y >= 0 &&  x < resolution.x && y < resolution.y
+  @inline def validIndex(pos: Vec2Int): Boolean =  validIndex(pos.x, pos.y)
 
   /** do not call directly, use "valueAt" for safety check */
   def valueAtUnsafe(pos: Vec2Int): T
@@ -30,6 +32,7 @@ trait Grid[T] {
 
   /** for storing grid in 1D array */
   @inline def toFlatIndex(index: Vec2Int): Int = index.x * resolution.y + index.y
+  @inline def toFlatIndex(x:Int, y:Int): Int = x * resolution.y + y
 
   @inline def fromFlatIndex(index: Int): Vec2Int = Vec2Int(index / resolution.y, index % resolution.y)
 

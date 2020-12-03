@@ -17,7 +17,9 @@ object ProductionLogic extends StrategyPart {
 
   //  def targetRanged(implicit g: GameInfo):Int = g.a
 
-  def canProduce(u: EntityType)(implicit g: GameInfo): Boolean = g.populationFree >= u.populationUse && g.myResources >= u.cost && g.my(unitToBuilderBase(u)).exists(_.active)
+  def canProduce(u: EntityType)(implicit g: GameInfo): Boolean =
+    g.populationFree >= u.populationUse && g.myResources >= g.unitCost(u) && g.my(unitToBuilderBase(u)).exists(_.active)
+
 
   def findFreeCellAround(e: Entity)(implicit g: GameInfo): Option[(Int, Int)] = rectNeighbours(e.position.x, e.position.y, e.entityType.size)
     .find(g.cellToEntity(_).isEmpty)
@@ -28,7 +30,7 @@ object ProductionLogic extends StrategyPart {
       findFreeCellAround(building).map { producePosition =>
         println(s"Producing $unitType at $producePosition")
         g.populationFree -= unitType.populationUse //Update resource status
-        g.myResources -= unitType.cost
+        g.myResources -= g.unitCost(unitType)
         (building.id,
           EntityAction(
             None,
