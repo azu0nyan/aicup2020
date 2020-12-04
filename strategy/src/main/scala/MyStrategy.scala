@@ -104,7 +104,6 @@ class MyStrategy {
 
   def debugUpdate(playerView: model.PlayerView, debugInterface: DebugInterface) {
     debugInterface.send(model.DebugCommand.Clear())
-    println(debugInterface.getState().pressedKeys)
     if (showVisualiser && gameInfo != null) {
 
       if (showVisualiserFollowCamera) {

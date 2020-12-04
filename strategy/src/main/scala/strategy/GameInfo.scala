@@ -175,6 +175,8 @@ class GameInfo(val pw: PlayerView) {
 
   val nonActiveBuildings: Seq[Entity] = myBuildings.filter(!_.active)
 
+  val needRepairBUildings: Seq[Entity] = myBuildings.filter(x => !x.active | x.health != x.entityType.maxHealth)
+
   var nonReservedWorkers: Set[Entity] = myWorkers.toSet &~ reservedWorkers.toSet
 
 

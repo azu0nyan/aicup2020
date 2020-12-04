@@ -16,6 +16,8 @@ object BattleLogic extends StrategyPart {
                     val id: (Int, Int),
                     val min: (Int, Int)
                   )(implicit g: GameInfo) {
+
+
     def center: Vec2Int = Vec2Int(min.x, min.y) + Vec2Int(g.regionsSize / 2, g.regionsSize / 2)
 
     val my_ : mutable.Map[EntityType, Seq[Entity]] = mutable.Map()
@@ -29,7 +31,9 @@ object BattleLogic extends StrategyPart {
     def neighbours9: Seq[RegionInfo] = neighbours9Pos(id._1, id._2, g.regionInSide, g.regionInSide).map { case (x, y) => g.regions(x)( y) }
 
 
-    def reward: Int = enemy_.map { case (entityType, seq) => entityType.destroyScore * seq.length }.sum + resources
+    def freeCells:Int = g.regionsSize * g.regionsSize - resources / RESOURCE.maxHealth
+
+    def reward: Int = enemy_.map { case (entityType, seq) => entityType.destroyScore * seq.length }.sum
 
     def power: Int =
       this.my(RANGED_UNIT).size * 5 * 10 +
@@ -72,11 +76,13 @@ object BattleLogic extends StrategyPart {
       val (x, y, cost) = queue.dequeue()
       inQueue.remove(x, y)
       res(x)(y) = cost
-      neighbours9Pos(x, y, g.regionInSide, g.regionInSide)
+//      neighbours9Pos(x, y, g.regionInSide, g.regionInSide)
+      rectNeighbours(x, y,1,  g.regionInSide, g.regionInSide)
         .filter { case (x, y) => res(x)(y) == Int.MinValue && !inQueue.contains((x, y)) }.foreach {
         case (x, y) =>
+          val reg = g.regions(x)(y)
           inQueue  .addOne (x, y)
-          queue  .addOne(x, y, cost - 1)
+          queue  .addOne(x, y, cost - (if(reg.freeCells > 15) 1 else  4))
       }
     }
     res
@@ -89,7 +95,7 @@ object BattleLogic extends StrategyPart {
       .filter(_._4 > 0).filter(_._2 > 0).filter(x => x._2 >= x._3).sortBy(-_._4).map(_._1) toSet
 
     if(g.myPower>= g.playerPowers.values.max ){
-      importantRegions += g.allRegions.maxBy(_.reward)
+      importantRegions ++= g.allRegions.filter(_.reward > 0). sortBy(- _.reward).take(5)
     }
 
     val p = pf
@@ -107,16 +113,25 @@ object BattleLogic extends StrategyPart {
           //                EntityAction(Some(MoveAction(e.position, true, true)), None, Some(AttackAction(Some(e.id), None)), None)
         })
       } else {
-        //macroAi
-        //defenceMode
-        val myPotential = p(myReg.id.x)(myReg.id.y)
-        val (target, targetPotential) = myReg.neighbours9.map(x => (x, p(x.id.x)(x.id.y))).maxBy(_._2)
-        if (myPotential < targetPotential){
-          (u.id, EntityAction(Some(MoveAction(target.center, true, true)),None,None, None ))
-        } else {
-          (u.id, EntityAction(Some(MoveAction(myReg.center, true, true)),None,None, None ))
+        g.enemyEntities.minBy(e => u.position.distanceTo(e.position)) match {
+          case e if u.position.distanceTo(e.position) <= u.entityType.attack.get.attackRange =>
+            (u.id, EntityAction(None, None, Some(AttackAction(Some(e.id), None)), None))
+          case e if u.position.distanceTo(e.position) <= 5 =>
+            (u.id, EntityAction(None, None, Some(AttackAction(None, Some(AutoAttack(3, Seq())))), None))
+          //                EntityAction(Some(MoveAction(e.position, true, true)), None, Some(AttackAction(Some(e.id), None)), None)
+          case _ =>
+            //macroAi
+            //defenceMode
+            val myPotential = p(myReg.id.x)(myReg.id.y)
+            val (target, targetPotential) = myReg.neighbours9.map(x => (x, p(x.id.x)(x.id.y))).maxBy(_._2)
+            if (myPotential < targetPotential) {
+              (u.id, EntityAction(Some(MoveAction(target.center, true, true)), None, None, None))
+            } else {
+              (u.id, EntityAction(Some(MoveAction(myReg.center, true, true)), None, None, None))
+            }
         }
       }
+
     } .toMap
 
   }
