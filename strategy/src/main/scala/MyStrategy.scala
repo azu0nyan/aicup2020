@@ -18,7 +18,7 @@ class MyStrategy {
   //  def productionLogic():Map[Int, EntityAction] =
   var totalTime = 0L
 
-  val showVisualiser = true
+  val showVisualiser = false
   var showVisualiserFollowCamera = false
 
   def getAction(playerView: model.PlayerView, debugInterface: Option[DebugInterface]): model.Action = {
