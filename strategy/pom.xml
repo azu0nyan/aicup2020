@@ -32,6 +32,9 @@
                 <artifactId>scala-maven-plugin</artifactId>
                 <version>4.4.0</version>
                 <configuration>
+                    <args>
+                        <arg>-language:postfixOps</arg>
+                    </args>
                     <scalaVersion>${scala.version}</scalaVersion>
                 </configuration>
                 <executions>

@@ -123,7 +123,7 @@ class GameInfo(val pw: PlayerView) {
 
   enemyEntities.map(e => (e.position, e.entityType.attack)).foreach {
     case (Vec2Int(x, y), Some(AttackProperties(attackRange, damage, collectResource))) =>
-      cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => powerMap(xx)(yy) += damage }
+      cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => dangerMap(xx)(yy) += damage }
     case _ =>
   }
 

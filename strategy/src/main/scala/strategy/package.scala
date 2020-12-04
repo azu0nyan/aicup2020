@@ -3,7 +3,7 @@ import model.EntityType._
 
 import scala.collection.mutable
 
-package object strategy {
+package object strategy extends VecOps {
 
   type ActionMap = Map[Int, EntityAction]
 
@@ -32,11 +32,7 @@ package object strategy {
 
   def closestTo(x: Int, y: Int, ent: Seq[Entity]): Entity = ent.minBy(e => e.position.distanceTo((x, y)))
 
-  implicit class VecOps(val x: Vec2Int) {
-    def +(ot: Vec2Int): Vec2Int = Vec2Int(x.x + ot.x, x.y + ot.y)
 
-    def distanceTo(ot: Vec2Int): Int = math.abs(x.x - ot.x) + math.abs(x.y - ot.y)
-  }
 
   def haveResourcesFor(b: EntityType)(implicit g: GameInfo): Boolean = b.initialCost <= g.myResources
 
