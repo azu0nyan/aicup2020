@@ -18,7 +18,7 @@ class MyStrategy {
   //  def productionLogic():Map[Int, EntityAction] =
   var totalTime = 0L
 
-  val showVisualiser = false
+  val showVisualiser = true
   var showVisualiserFollowCamera = false
 
   def getAction(playerView: model.PlayerView, debugInterface: Option[DebugInterface]): model.Action = {
@@ -41,6 +41,32 @@ class MyStrategy {
           for (i <- 0 until playerView.mapSize; j <- 0 until playerView.mapSize if gameInfo.powerMap(i)(j) != 0) {
             DrawingUtils.drawText(gameInfo.powerMap(i)(j).toString, Vec2Float(i +.1f, j +.7f ), g, 10, false,
               new java.awt.Color(0, 255, 0))
+          }
+        }
+      })
+
+      val pf = Drawing.addDrawer(g => {
+        if(gameInfo != null){
+          val pf = BattleLogic.pf(gameInfo)
+          for(i<- 0 until gameInfo.regionInSide; j <- 0 until gameInfo.regionInSide){
+            if(pf(i)(j) != Int.MinValue) {
+              DrawingUtils.drawText(pf(i)(j).toString,
+                toVec2Int(gameInfo.regions(i)(j).min).toVec2Float + Vec2Float(gameInfo.regionsSize / 2, gameInfo.regionsSize *3 / 4), g,
+                20, false, java.awt.Color.BLACK
+              )
+            }
+            val reg = gameInfo.regions(i)(j)
+            if(BattleLogic.importantRegions.contains(reg)){
+              DrawingUtils.drawRect(toVec2Int(reg.min).toVec2Float, gameInfo.regionsSize, gameInfo.regionsSize, g, new java.awt.Color(255, 0,0, 60), true)
+            }
+            DrawingUtils.drawText(s"D/P: ${reg.neighbours9.map(_.danger).sum} / ${reg.neighbours9.map(_.power).sum} ",
+              toVec2Int(gameInfo.regions(i)(j).min).toVec2Float + Vec2Float(gameInfo.regionsSize / 2, gameInfo.regionsSize *2 / 4), g,
+              10, false, java.awt.Color.BLACK
+            )
+            DrawingUtils.drawText(s"D/R ${reg.neighbours9.map(_.defenceValue).sum} / ${reg.neighbours9.map(_.reward).sum}",
+              toVec2Int(gameInfo.regions(i)(j).min).toVec2Float + Vec2Float(gameInfo.regionsSize / 2, gameInfo.regionsSize * 1/ 4), g,
+              10, false, java.awt.Color.BLACK
+            )
           }
         }
       })

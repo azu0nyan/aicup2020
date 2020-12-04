@@ -14,6 +14,16 @@ package object strategy extends VecOps {
   implicit def fromVec2Int(v: Vec2Int): (Int, Int) = (v.x, v.y)
 
 
+  def rectArea(minx: Int, miny: Int, sizex: Int, sizey: Int, maxX: Int = Int.MaxValue, maxY: Int = Int.MaxValue): Seq[(Int, Int)] =
+    for (i <- math.max(0, minx) until math.min(minx + sizex, maxX);
+         j <- math.max(0, miny) until math.min(miny + sizey, maxY)) yield (i, j)
+
+  def neighbours9Pos(x: Int, y: Int, maxX: Int = Int.MaxValue, maxY: Int = Int.MaxValue): Seq[(Int, Int)] =
+    for (
+      i <- math.max(0, x - 1) to math.min(x + 1, maxX - 1);
+      j <- math.max(0, y - 1) to math.min(y + 1, maxY - 1) if i != x || j != y) yield (i, j)
+
+
   def rectNeighboursV(v: Vec2Int, size: Int, maxX: Int = Int.MaxValue, maxY: Int = Int.MaxValue): Seq[(Int, Int)] =
     rectNeighbours(v.x, v.y, size, maxX, maxY)
 
@@ -31,7 +41,6 @@ package object strategy extends VecOps {
   def sqContains(rx: Int, ry: Int, size: Int, px: Int, py: Int): Boolean = rx <= px && ry <= py && px < rx + size && py < ry + size
 
   def closestTo(x: Int, y: Int, ent: Seq[Entity]): Entity = ent.minBy(e => e.position.distanceTo((x, y)))
-
 
 
   def haveResourcesFor(b: EntityType)(implicit g: GameInfo): Boolean = b.initialCost <= g.myResources

@@ -109,19 +109,18 @@ class DrawingWindow() extends JFrame {
     try {
       drawable.update(dt)
     } catch {
-      case e: Exception =>
-        println(drawable)
-        e.printStackTrace()
+      case t: Throwable =>
+        t.printStackTrace()
     }
+
   }
 
   def drawObject(drawable: DrawableUpdatable, g: Graphics2D): Unit = {
     try {
       drawable.draw(g)
     } catch {
-      case e: Exception =>
-        println(drawable)
-        e.printStackTrace()
+      case t: Throwable =>
+        t.printStackTrace()
     }
   }
 

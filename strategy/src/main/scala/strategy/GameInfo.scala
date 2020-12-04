@@ -3,6 +3,9 @@ package strategy
 import helpers.ArrayGrid
 import model.EntityType._
 import model.{AttackProperties, Entity, EntityProperties, EntityType, Player, PlayerView, Vec2Int}
+import strategy.BattleLogic.RegionInfo
+
+import scala.collection.mutable
 
 object GameInfo {
 
@@ -19,7 +22,11 @@ object GameInfo {
 
 class GameInfo(val pw: PlayerView) {
 
-  implicit val g:GameInfo = this
+
+  val mapSize: Int = pw.mapSize
+
+
+  implicit val g: GameInfo = this
 
   val resources: Seq[Entity] = pw.entities.filter(_.entityType == RESOURCE)
 
@@ -50,6 +57,11 @@ class GameInfo(val pw: PlayerView) {
 
 
   val myEntities: Seq[Entity] = entitiesByPlayer(me)
+
+  val playerPowers:Map[Player, Int] =
+    pw.players.map(p => (p, entitiesByPlayer(p).map(_.entityType.attack.map(_.damage).getOrElse(0)).sum))toMap
+
+  val myPower:Int = playerPowers(me)
 
   def unitCost(e: EntityType): Int = e.initialCost + my(e).size
 
@@ -117,7 +129,7 @@ class GameInfo(val pw: PlayerView) {
 
   myEntities.map(e => (e.position, e.entityType.attack)).foreach {
     case (Vec2Int(x, y), Some(AttackProperties(attackRange, damage, collectResource))) =>
-      cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => powerMap(xx)(yy) += damage            }
+      cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => powerMap(xx)(yy) += damage }
     case _ =>
   }
 
@@ -127,16 +139,36 @@ class GameInfo(val pw: PlayerView) {
     case _ =>
   }
 
+  val regionsSize: Int = 5
+  val regionInSide: Int = g.pw.mapSize / regionsSize
+  val regions: Array[Array[RegionInfo]] = Array.tabulate(g.regionInSide, g.regionInSide)((x, y) => new RegionInfo((x, y), (x * g.regionsSize, y * g.regionsSize)))
+  val allRegions: Seq[RegionInfo] = regions.toSeq.flatten
+  def region(pos: Vec2Int): RegionInfo = regions(pos.x / regionsSize)(pos.y/ regionsSize)
+  def region(x: Int, y: Int): RegionInfo = regions(x / regionsSize)(y/ regionsSize)
+
+
+
+  for (e <- myEntities) region(e.position).my_.updateWith(e.entityType) {
+    case Some(seq) => Some(e +: seq)
+    case None => Some(Seq(e))
+  }
+  for (e <- enemyEntities) region(e.position).enemy_.updateWith(e.entityType) {
+    case Some(seq) => Some(e +: seq)
+    case None => Some(Seq(e))
+  }
+  for (e <- resources) region(e.position).resources += e.health
+
 
 
   ///VARIABLES
   var myResources: Int = me.resource
   var populationFree: Int = populationMax - populationUse
 
-  var minableResource:Set[Entity] = resources
+  var minableResource: Set[Entity] = resources
     .filter(r => rectNeighbours(r.position.x, r.position.y, 1, pw.mapSize, pw.mapSize)
-      .exists{ case (x, y) => entitiesMap(x, y).isEmpty ||
-        entitiesMap(x, y).get.playerId.contains(me.id) && entitiesMap(x, y).get.entityType == BUILDER_UNIT }).toSet
+      .exists { case (x, y) => entitiesMap(x, y).isEmpty ||
+        entitiesMap(x, y).get.playerId.contains(me.id) && entitiesMap(x, y).get.entityType == BUILDER_UNIT
+      }).toSet
 
 
   var reservedWorkers: Seq[Entity] = Seq()
@@ -144,4 +176,7 @@ class GameInfo(val pw: PlayerView) {
   val nonActiveBuildings: Seq[Entity] = myBuildings.filter(!_.active)
 
   var nonReservedWorkers: Set[Entity] = myWorkers.toSet &~ reservedWorkers.toSet
+
+
+
 }

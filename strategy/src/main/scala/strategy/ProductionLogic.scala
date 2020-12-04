@@ -8,11 +8,11 @@ import scala.collection.mutable
 object ProductionLogic extends StrategyPart {
 
 
-  val minWorkers: Int = 15
+  val minWorkers: Int = 5
 
   val workersToArmyRatio: Double = 0.3
 
-  val rangedToArmyRatio: Double = 0.8
+  val rangedToArmyRatio: Double = 0.4
 
 
   //  def targetRanged(implicit g: GameInfo):Int = g.a
@@ -49,19 +49,19 @@ object ProductionLogic extends StrategyPart {
 
     g.myProductionBuildings.foreach( x => res += (x.id -> EntityAction(None, None, None, None)))
 
-    if (canProduce(BUILDER_UNIT) && (g.my(BUILDER_UNIT).size < minWorkers )) {
+    if (canProduce(BUILDER_UNIT) && (g.my(BUILDER_UNIT).size < minWorkers | g.armyTotal * workersToArmyRatio > g.my(BUILDER_UNIT).size )) {
       produce(BUILDER_UNIT).foreach(x => res += x)
     }
 
     if (g.armyTotal * rangedToArmyRatio >= g.my(RANGED_UNIT).size) {
-      if (canProduce(MELEE_UNIT)) produce(RANGED_UNIT).foreach(x => res += x)
-    } else {
       if (canProduce(RANGED_UNIT)) produce(RANGED_UNIT).foreach(x => res += x)
+    } else {
+      if (canProduce(MELEE_UNIT)) produce(MELEE_UNIT).foreach(x => res += x)
     }
 
-    if (canProduce(BUILDER_UNIT) &&  g.armyTotal * workersToArmyRatio > g.my(BUILDER_UNIT).size) {
+  /*  if (canProduce(BUILDER_UNIT) &&  g.armyTotal * workersToArmyRatio > g.my(BUILDER_UNIT).size) {
       produce(BUILDER_UNIT).foreach(x => res += x)
-    }
+    }*/
     res.toMap
   }
 }
