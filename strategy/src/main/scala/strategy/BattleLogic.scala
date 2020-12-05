@@ -97,7 +97,6 @@ object BattleLogic extends StrategyPart {
     while (queue.nonEmpty) {
       val (x, y, cost) = queue.dequeue()
       if(res(x)(y) < cost ) {
-        println(s"$x $y $cost")
         res(x)(y) = cost
         //      neighbours9Pos(x, y, g.regionInSide, g.regionInSide)
         rectNeighbours(x, y, 1, g.regionInSide, g.regionInSide)

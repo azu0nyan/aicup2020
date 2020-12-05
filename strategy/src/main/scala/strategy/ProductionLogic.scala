@@ -8,7 +8,7 @@ import scala.collection.mutable
 object ProductionLogic extends StrategyPart {
 
 
-  val minWorkers: Int = 4
+  val minWorkers: Int = 5
 
   val workersToArmyRatio: Double = 0.5
 

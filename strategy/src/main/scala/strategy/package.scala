@@ -31,13 +31,15 @@ package object strategy extends VecOps {
     (for (i <- 0 until size) yield Seq((x - 1, y + i), (x + size, y + i), (x + i, y - 1), (x + i, y + size))).flatten
       .filter { case (x, y) => x >= 0 && y >= 0 && x < maxX && y < maxY }
 
+  def cellsInRangeV(pos: Vec2Int, size: Int, mapSize: Int): Seq[(Int, Int)] = cellsInRange(pos.x, pos.y, size, mapSize:Int)
+
   def cellsInRange(x: Int, y: Int, size: Int, mapSize: Int): Seq[(Int, Int)] = {
-    val res = mutable.Buffer[(Int, Int)]()
-    for (dx <- -size to size; dy <- -(size - math.abs(dx)) to (size - math.abs(dx))) {
-      res.append((x + dx, y + dy))
+      val res = mutable.Buffer[(Int, Int)]()
+      for (dx <- -size to size; dy <- -(size - math.abs(dx)) to (size - math.abs(dx))) {
+        res.append((x + dx, y + dy))
+      }
+      res.filter { case (x, y) => sqContains(0, 0, mapSize, x, y) }.toSeq
     }
-    res.filter { case (x, y) => sqContains(0, 0, mapSize, x, y) }.toSeq
-  }
   def sqContains(rx: Int, ry: Int, size: Int, px: Int, py: Int): Boolean = rx <= px && ry <= py && px < rx + size && py < ry + size
 
   def closestTo(x: Int, y: Int, ent: Seq[Entity]): Entity = ent.minBy(e => e.position.distanceTo((x, y)))
@@ -68,7 +70,7 @@ package object strategy extends VecOps {
     case _ => false
 
   }
-  def merge(one: ActionMap, two: ActionMap): ActionMap = {
+  def combineOnePr(one: ActionMap, two: ActionMap): ActionMap = {
     val int = one.keySet & two.keySet
     (one.keySet | two.keySet).map(x => (x, if (int.contains(x)) {
       EntityAction(

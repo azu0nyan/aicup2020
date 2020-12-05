@@ -181,6 +181,7 @@ class GameInfo(val pw: PlayerView) {
 
   var nonReservedWorkers: Set[Entity] = myWorkers.toSet &~ reservedWorkers.toSet
 
+  var reservedForMovementCells:Seq[(Int, Int)] = Seq()
 
 
 }
