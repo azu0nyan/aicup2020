@@ -13,6 +13,8 @@ object GameInfo {
   var entityPrice: Map[EntityType, Int] = Map()
   var entityProperties: Map[EntityType, EntityProperties] = Map()
 
+  var firstReadHappened:Boolean = false
+
   def firstRead(pw: PlayerView): Unit = {
     entityProperties = pw.entityProperties
     entityPrice = pw.entityProperties.map { case (entityType, properties) => (entityType, properties.initialCost) }
@@ -42,7 +44,7 @@ class GameInfo(val pw: PlayerView) {
     TURRET)
 
 
-  val me: Player = pw.players.find(_.id == pw.myId).getOrElse(Player(0, 0, 0))
+  val me: Player = pw.players.find(_.id == pw.myId).get
   val enemies: Seq[Player] = pw.players.filter(_.id != pw.myId)
   val baseArea: Int = 30
 
