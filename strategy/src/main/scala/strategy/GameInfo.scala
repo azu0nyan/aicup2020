@@ -120,7 +120,9 @@ class GameInfo(val pw: PlayerView) {
 
   val populationUse: Int = entitiesByPlayer(me).map(_.entityType.populationUse).sum
 
-  val populationMax: Int = entitiesByPlayer(me).map(_.entityType.populationProvide).sum
+  val populationMax: Int = entitiesByPlayer(me).filter(_.active).map(e => e.entityType.populationProvide ).sum
+
+  val populationMaxWithNonactive: Int = entitiesByPlayer(me).map(_.entityType.populationProvide).sum
 
   val enemyEntities: Seq[Entity] = enemies.flatMap(entitiesByPlayer)
 
@@ -163,7 +165,7 @@ class GameInfo(val pw: PlayerView) {
 
 
   ///VARIABLES
-  var myResources: Int = me.resource
+  var myMinerals: Int = me.resource
   var populationFree: Int = populationMax - populationUse
 
   var minableResource: Set[Entity] = resources
@@ -174,6 +176,8 @@ class GameInfo(val pw: PlayerView) {
 
 
   var reservedWorkers: Seq[Entity] = Seq()
+
+  var reservedBuildings:Set[Entity] = Set()
 
   val nonActiveBuildings: Seq[Entity] = myBuildings.filter(!_.active)
 

@@ -45,7 +45,7 @@ package object strategy extends VecOps {
   def closestTo(x: Int, y: Int, ent: Seq[Entity]): Entity = ent.minBy(e => e.position.distanceTo((x, y)))
 
 
-  def haveResourcesFor(b: EntityType)(implicit g: GameInfo): Boolean = b.initialCost <= g.myResources
+  def haveResourcesFor(b: EntityType)(implicit g: GameInfo): Boolean = b.initialCost <= g.myMinerals
 
   val unitToBuilderBase: Map[EntityType, EntityType] = Map(
     BUILDER_UNIT -> BUILDER_BASE,

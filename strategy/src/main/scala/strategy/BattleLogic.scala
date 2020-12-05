@@ -60,10 +60,10 @@ object BattleLogic extends StrategyPart {
     lazy val danger9: Int = neighbours9.map(_.danger).sum
     lazy val power9: Int = neighbours9.map(_.power).sum
 
-    lazy val entities:Seq[Entity] = my_.values.flatten ++ enemy_.values.flatten toSeq
+    lazy val entities: Seq[Entity] = my_.values.flatten ++ enemy_.values.flatten toSeq
 
-    lazy val controlledByPlayerId:Option[Int] =  entities.groupBy(_.playerId)
-      .map{ case (p, value) => (p, value.map(_.entityType.buildScore).sum)}.maxByOption(_._2).flatMap(_._1)
+    lazy val controlledByPlayerId: Option[Int] = entities.groupBy(_.playerId)
+      .map { case (p, value) => (p, value.map(_.entityType.buildScore).sum) }.maxByOption(_._2).flatMap(_._1)
   }
 
 
@@ -74,29 +74,35 @@ object BattleLogic extends StrategyPart {
   val defendWinRegionPrice = 8
   val attackRegionPrice = 8
 
-  def importanceMap(implicit  g: GameInfo): Seq[(RegionInfo, Int)] = {
+  def importanceMap(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
     val (needDefendWeLose, needDefendWeWin) =
       g.allRegions.filter(x => x.defence9 > 0 && x.danger9 > 0).partition(x => x.power9 < x.danger9)
-    val attackTargets = g.allRegions.filter(x => x.reward9 > 0 && x.danger9 * 7 < g.myPower).sortBy(- _.reward9).take(3)
+    val attackTargets =
+      if (g.pw.currentTick < 100) Seq()
+      else if (g.pw.currentTick < 250)
+        g.allRegions.filter(x => x.reward9 > 0 && x.danger9 * 7 < g.myPower).sortBy(x => Vec2Int(0, 0).distanceTo(x.id)).take(3)
+      else g.allRegions.filter(x => x.reward9 > 0 && x.danger9 * 7 < g.myPower).sortBy(-_.reward9).take(3)
+
+
 
     needDefendWeLose.map(x => (x, defendRegionPrice)) ++
-    needDefendWeWin.map(x => (x, defendWinRegionPrice)) ++
-    attackTargets.map(x => (x, attackRegionPrice))
+      needDefendWeWin.map(x => (x, defendWinRegionPrice)) ++
+      attackTargets.map(x => (x, attackRegionPrice))
 
   }
 
   def pf(implicit g: GameInfo): Array[Array[Int]] = {
     val res = Array.tabulate[Int](g.regionInSide, g.regionInSide)((x, y) => Int.MinValue)
-    val queue: mutable.PriorityQueue[(Int, Int, Int)] = mutable.PriorityQueue()(Ordering.by( _._3))
+    val queue: mutable.PriorityQueue[(Int, Int, Int)] = mutable.PriorityQueue()(Ordering.by(_._3))
 
-    importanceMap.foreach{
+    importanceMap.foreach {
       case (info, i) =>
-        queue.addOne(info.id.x, info.id.y, i )
+        queue.addOne(info.id.x, info.id.y, i)
     }
 
     while (queue.nonEmpty) {
       val (x, y, cost) = queue.dequeue()
-      if(res(x)(y) < cost ) {
+      if (res(x)(y) < cost) {
         res(x)(y) = cost
         //      neighbours9Pos(x, y, g.regionInSide, g.regionInSide)
         rectNeighbours(x, y, 1, g.regionInSide, g.regionInSide)
@@ -116,12 +122,12 @@ object BattleLogic extends StrategyPart {
 
     importantRegions = importanceMap.map(_._1).toSet
     //defence
-//    importantRegions = g.allRegions.map(r => (r, r.neighbours9.map(_.danger).sum, r.neighbours9.map(_.power).sum, r.neighbours9.map(_.defenceValue).sum))
-//      .filter(_._4 > 0).filter(_._2 > 0).filter(x => x._2 >= x._3).sortBy(-_._4).map(_._1) toSet
-//
-//    if (g.myPower >= g.playerPowers.values.max) {
-//      importantRegions ++= g.allRegions.filter(_.reward > 0).sortBy(-_.reward).take(5)
-//    }
+    //    importantRegions = g.allRegions.map(r => (r, r.neighbours9.map(_.danger).sum, r.neighbours9.map(_.power).sum, r.neighbours9.map(_.defenceValue).sum))
+    //      .filter(_._4 > 0).filter(_._2 > 0).filter(x => x._2 >= x._3).sortBy(-_._4).map(_._1) toSet
+    //
+    //    if (g.myPower >= g.playerPowers.values.max) {
+    //      importantRegions ++= g.allRegions.filter(_.reward > 0).sortBy(-_.reward).take(5)
+    //    }
 
     val p = pf(g)
 
