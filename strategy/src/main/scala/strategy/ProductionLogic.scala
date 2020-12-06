@@ -120,7 +120,6 @@ object ProductionLogic extends StrategyPart {
 
 
     val housesReq = isHouseRequired(g.populationUse, g.populationMaxWithNonactive)
-    println(housesReq, g.populationUse, g.populationMaxWithNonactive)
     if (housesReq && g.myMinerals >= HOUSE.initialCost) {
       println(s"Trying to build house")
       BuildingLogic.build(HOUSE) match {

@@ -12,7 +12,7 @@ object ActivateRepairLogic extends StrategyPart {
 
       (if(workersClose.nonEmpty) workersClose else g.nonReservedWorkers.toSeq.sortBy(_.position.distanceTo(b.position)).take(3)).map(w => (w, rectNeighbours(b.position.x, b.position.y, b.entityType.size).minBy(pos => w.position.distanceTo(pos)))).map{
         case (entity, pos) =>
-          g.reservedWorkers = g.reservedWorkers :+ entity
+          g.reservedUnits += entity
           (entity.id, EntityAction(Some(MoveAction(pos, true, false)),None, None, Some(RepairAction(b.id))))
       }
     }

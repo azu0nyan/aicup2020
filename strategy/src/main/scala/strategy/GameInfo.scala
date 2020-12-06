@@ -5,6 +5,7 @@ import model.EntityType._
 import model.{AttackProperties, Entity, EntityProperties, EntityType, Player, PlayerView, Vec2Int}
 import strategy.BattleLogic.RegionInfo
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 
 object GameInfo {
@@ -13,9 +14,11 @@ object GameInfo {
   var entityPrice: Map[EntityType, Int] = Map()
   var entityProperties: Map[EntityType, EntityProperties] = Map()
 
-  var firstReadHappened:Boolean = false
+  var myId = 0
+  var firstReadHappened: Boolean = false
 
   def firstRead(pw: PlayerView): Unit = {
+    myId = pw.myId
     entityProperties = pw.entityProperties
     entityPrice = pw.entityProperties.map { case (entityType, properties) => (entityType, properties.initialCost) }
   }
@@ -60,10 +63,10 @@ class GameInfo(val pw: PlayerView) {
 
   val myEntities: Seq[Entity] = entitiesByPlayer(me)
 
-  val playerPowers:Map[Player, Int] =
-    pw.players.map(p => (p, entitiesByPlayer(p).map(_.entityType.attack.map(_.damage).getOrElse(0)).sum))toMap
+  val playerPowers: Map[Player, Int] =
+    pw.players.map(p => (p, entitiesByPlayer(p).map(_.entityType.attack.map(_.damage).getOrElse(0)).sum)) toMap
 
-  val myPower:Int = playerPowers(me)
+  val myPower: Int = playerPowers(me)
 
   def unitCost(e: EntityType): Int = e.initialCost + my(e).size
 
@@ -83,6 +86,7 @@ class GameInfo(val pw: PlayerView) {
       entitiesMap.setValue((i, j), Some(e))
     }
   })
+
 
 
   def cellToEntity(pos: (Int, Int)): Option[Entity] = entitiesMap.valueAtUnsafe(pos)
@@ -120,7 +124,7 @@ class GameInfo(val pw: PlayerView) {
 
   val populationUse: Int = entitiesByPlayer(me).map(_.entityType.populationUse).sum
 
-  val populationMax: Int = entitiesByPlayer(me).filter(_.active).map(e => e.entityType.populationProvide ).sum
+  val populationMax: Int = entitiesByPlayer(me).filter(_.active).map(e => e.entityType.populationProvide).sum
 
   val populationMaxWithNonactive: Int = entitiesByPlayer(me).map(_.entityType.populationProvide).sum
 
@@ -147,9 +151,8 @@ class GameInfo(val pw: PlayerView) {
   val regionInSide: Int = g.pw.mapSize / regionsSize
   val regions: Array[Array[RegionInfo]] = Array.tabulate(g.regionInSide, g.regionInSide)((x, y) => new RegionInfo((x, y), (x * g.regionsSize, y * g.regionsSize)))
   val allRegions: Seq[RegionInfo] = regions.toSeq.flatten
-  def region(pos: Vec2Int): RegionInfo = regions(pos.x / regionsSize)(pos.y/ regionsSize)
-  def region(x: Int, y: Int): RegionInfo = regions(x / regionsSize)(y/ regionsSize)
-
+  def region(pos: Vec2Int): RegionInfo = regions(pos.x / regionsSize)(pos.y / regionsSize)
+  def region(x: Int, y: Int): RegionInfo = regions(x / regionsSize)(y / regionsSize)
 
 
   for (e <- myEntities) region(e.position).my_.updateWith(e.entityType) {
@@ -162,7 +165,50 @@ class GameInfo(val pw: PlayerView) {
   }
   for (e <- resources) region(e.position).resources += e.health
 
+  def isWalkable(xy:(Int, Int)):Boolean = entitiesMap(xy).isEmpty && !reservedForMovementCells.contains(xy)
 
+  def findClosestReachable(x:Int, y:Int, filter: Entity => Boolean, maxDistance:Int) :Option[(Entity, Seq[(Int, Int)])] = {
+    val visited:mutable.Set[(Int, Int)] = mutable.Set()
+    val toVisit:mutable.Queue[(Int, Int)] = mutable.Queue()
+    val cameFrom:mutable.Map[(Int, Int), (Int, Int)] = mutable.Map()
+    toVisit += ((x, y))
+    visited += ((x, y))
+
+    /**without first node**/
+    def  reconstructPath(to:(Int,Int)) :Seq[(Int, Int)] = cameFrom.get (to) match {
+      case None => Seq()
+      case Some(from) => to +: reconstructPath(from)
+    }
+
+    var found = false
+    while (toVisit.nonEmpty){
+      val (curx, cury) = toVisit.dequeue()
+      val curE = entitiesMap(curx, cury)
+      if(curE.nonEmpty && filter(curE.get)){
+        return Some((curE.get, reconstructPath((curx, cury)).reverse))
+      }
+      rectNeighbours(curx, cury, 1, g.mapSize).foreach{
+         xy => if(distance(xy, (x, y))<= maxDistance && isWalkable(xy) && !visited.contains(xy)){
+           cameFrom(xy) = (x, y)
+           visited += xy
+           toVisit += xy
+         }
+      }
+    }
+    return None
+
+  }
+
+  //  def myUnitsInArea(cx:Int, cy:Int, size:Int, types:Seq[EntityType]):Seq[Entity] = {
+  //    val regions:Set[(Int, Int)] =
+  //      Set(
+  //        ((cx /regionsSize, cy / regionsSize),
+  //        (cx /regionsSize, cy / regionsSize),
+  //        (cx /regionsSize, cy / regionsSize),
+  //      )
+  //  }
+  //
+  //
 
   ///VARIABLES
   var myMinerals: Int = me.resource
@@ -175,17 +221,28 @@ class GameInfo(val pw: PlayerView) {
       }).toSet
 
 
-  var reservedWorkers: Seq[Entity] = Seq()
+  var reservedEnemy: Set[Entity] = Set()
 
-  var reservedBuildings:Set[Entity] = Set()
+  val damageToEnemy_ : mutable.Map[Entity, Int] = mutable.Map()
+  def addDamageTo(enemy: Entity, damage: Int):Unit = damageToEnemy_.updateWith(enemy) {
+    case Some(value) => Some(value + damage)
+    case None => Some(damage)
+  }
+  def getDamageTo(enemy: Entity):Int = damageToEnemy_.getOrElse(enemy, 0)
+
+  var reservedUnits: Set[Entity] = Set()
+
+  def reservedWorkers: Set[Entity] = reservedUnits.filter(_.entityType == BUILDER_UNIT)
+
+  var reservedBuildings: Set[Entity] = Set()
 
   val nonActiveBuildings: Seq[Entity] = myBuildings.filter(!_.active)
 
   val needRepairBUildings: Seq[Entity] = myBuildings.filter(x => !x.active | x.health != x.entityType.maxHealth)
 
-  var nonReservedWorkers: Set[Entity] = myWorkers.toSet &~ reservedWorkers.toSet
+  def nonReservedWorkers: Set[Entity] = myWorkers.toSet &~ reservedWorkers.toSet
 
-  var reservedForMovementCells:Seq[(Int, Int)] = Seq()
+  var reservedForMovementCells: Set[(Int, Int)] = Set()
 
 
 }

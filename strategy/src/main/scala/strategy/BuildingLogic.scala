@@ -25,7 +25,7 @@ object BuildingLogic {
   def build(u: EntityType)(implicit g: GameInfo): Option[(Entity, EntityAction)] = findCurrentTurnBuildingSpot(u.size) map {
     case (x, y, e) =>
       println(s"Found spot for $u at $x $y with builder $e")
-      g.reservedWorkers = g.reservedWorkers :+ e
+      g.reservedUnits += e
       (e, EntityAction(None, Some(BuildAction(u, (x, y))), None, None))
   }/* orElse {
    NOne

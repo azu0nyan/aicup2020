@@ -8,6 +8,7 @@ object MacroStrategy extends StrategyPart {
     var res: Map[Int, EntityAction] = Map[Int, EntityAction]()
 
 
+    res = combineOnePr(res, TacticsLogic.getActions)
     res = combineOnePr(res, ActivateRepairLogic.getActions)
     res = combineOnePr(res, ProductionLogic.getActions)
     res = combineOnePr(res, MiningLogic.getActions)

@@ -5,6 +5,17 @@ import scala.collection.mutable
 
 package object strategy extends VecOps {
 
+  implicit class EntityOps(val e:Entity){
+    def damage:Int = e.entityType.attack match {
+      case Some(value) => value.damage
+      case None => 0
+    }
+
+    def maxHp:Int = e.entityType.maxHealth
+
+    def isEnemy:Boolean = e.playerId.nonEmpty  && e.playerId.get != GameInfo.myId
+  }
+
   type ActionMap = Map[Int, EntityAction]
 
   implicit def EntityTypeToProperties(e: EntityType): EntityProperties = GameInfo.entityProperties(e)
@@ -44,6 +55,8 @@ package object strategy extends VecOps {
 
   def closestTo(x: Int, y: Int, ent: Seq[Entity]): Entity = ent.minBy(e => e.position.distanceTo((x, y)))
 
+
+  def distance(x:(Int, Int), ot:(Int,Int)):Int = math.abs(x.x - ot.x) + math.abs(x.y - ot.y)
 
   def haveResourcesFor(b: EntityType)(implicit g: GameInfo): Boolean = b.initialCost <= g.myMinerals
 

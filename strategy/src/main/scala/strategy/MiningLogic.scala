@@ -17,7 +17,7 @@ object MiningLogic extends StrategyPart {
         case _ => false
       }.flatten.foreach{
         e =>
-          g.nonReservedWorkers -= e
+          g.reservedUnits += e
           g.minableResource -= r
           res += (e.id -> EntityAction(None, None, Some(AttackAction(Some(r.id), None)), None ))
       }
@@ -26,7 +26,7 @@ object MiningLogic extends StrategyPart {
     if (g.resources.nonEmpty) g.nonReservedWorkers.foreach { worker =>
       closestMine(worker.position).foreach { cl =>
         g.minableResource -= cl
-        g.nonReservedWorkers -= worker
+        g.reservedUnits += worker
         res += (worker.id -> EntityAction(
           Some(MoveAction(cl.position, true, false)),
           None,

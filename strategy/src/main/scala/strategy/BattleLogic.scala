@@ -12,6 +12,20 @@ import scala.util.Random
 object BattleLogic extends StrategyPart {
 
 
+  val rewardPerUnit: Map[EntityType, Int] =
+    Map(
+      RESOURCE -> 0,
+      WALL -> 10,
+      TURRET -> 10,
+      RANGED_UNIT -> 10,
+      MELEE_UNIT -> 10,
+      BUILDER_UNIT -> 100,
+      HOUSE -> 500,
+      BUILDER_BASE -> 1000,
+      RANGED_BASE -> 700,
+      MELEE_BASE -> 700,
+    )
+
   class RegionInfo(
                     val id: (Int, Int),
                     val min: (Int, Int)
@@ -23,8 +37,18 @@ object BattleLogic extends StrategyPart {
     val my_ : mutable.Map[EntityType, Seq[Entity]] = mutable.Map()
     val enemy_ : mutable.Map[EntityType, Seq[Entity]] = mutable.Map()
     var resources: Int = 0
+
     def my(e: EntityType): Seq[Entity] = my_.getOrElse(e, Seq())
+
+    def my(e: Seq[EntityType]): Seq[Entity] = e.flatMap(my)
+
     def enemy(e: EntityType): Seq[Entity] = enemy_.getOrElse(e, Seq())
+
+    def enemy(e: Seq[EntityType]): Seq[Entity] = e.flatMap(enemy)
+
+    def myN9(e:Seq[EntityType]):Seq[Entity] = e.flatMap(e => my(e) ++ neighbours9.flatMap(_.my(e))).toSeq
+
+    def enemyN9(e:Seq[EntityType]):Seq[Entity] = e.flatMap(e => enemy(e) ++ neighbours9.flatMap(_.enemy(e))).toSeq
 
     def neighbours4: Seq[RegionInfo] = rectNeighbours(id._1, id._2, g.regionInSide, g.regionInSide).map { case (x, y) => g.regions(x)(y) }
 
@@ -51,8 +75,8 @@ object BattleLogic extends StrategyPart {
         this.my(RANGED_BASE).size * 1000 +
         this.my(BUILDER_UNIT).size * 100 +
         this.my(TURRET).size * 200
-    lazy val reward: Int =
-      enemy_.map { case (entityType, seq) => entityType.destroyScore * seq.length }.sum
+
+    lazy val reward: Int = this.enemy_.keys.map(e => this.enemy(e).size * rewardPerUnit(e)).sum
 
 
     lazy val reward9: Int = neighbours9.map(_.reward).sum
@@ -79,15 +103,19 @@ object BattleLogic extends StrategyPart {
       g.allRegions.filter(x => x.defence9 > 0 && x.danger9 > 0).partition(x => x.power9 < x.danger9)
     val attackTargets =
       if (g.pw.currentTick < 100) Seq()
-      else if (g.pw.currentTick < 250)
-        g.allRegions.filter(x => x.reward9 > 0 && x.danger9 * 7 < g.myPower).sortBy(x => Vec2Int(0, 0).distanceTo(x.id)).take(3)
-      else g.allRegions.filter(x => x.reward9 > 0 && x.danger9 * 7 < g.myPower).sortBy(-_.reward9).take(3)
+      else {
+        val allTargets = g.allRegions.filter(x => x.reward > 0 && x.danger9 * 3 < g.myPower).sortBy(_.reward9)
+        allTargets.take(allTargets.size / 2).map(x => (x, attackRegionPrice / 2)) ++
+        allTargets.drop(allTargets.size / 2).map(x => (x, attackRegionPrice))
+      }
+
+
 
 
 
     needDefendWeLose.map(x => (x, defendRegionPrice)) ++
       needDefendWeWin.map(x => (x, defendWinRegionPrice)) ++
-      attackTargets.map(x => (x, attackRegionPrice))
+      attackTargets
 
   }
 
@@ -129,44 +157,25 @@ object BattleLogic extends StrategyPart {
     //      importantRegions ++= g.allRegions.filter(_.reward > 0).sortBy(-_.reward).take(5)
     //    }
 
+
     val p = pf(g)
 
 
-    (g.my(RANGED_UNIT) ++ g.my(MELEE_UNIT)).map { u =>
+    (g.my(RANGED_UNIT) ++ g.my(MELEE_UNIT)).filterNot(g.reservedUnits.contains).map { u =>
       val myReg = g.region(u.position)
-      if (g.dangerMap(u.position.x)(u.position.y) > 0) {
-        //battle ai
-        (u.id, g.enemyEntities.minBy(e => u.position.distanceTo(e.position)) match {
-          case e if u.position.distanceTo(e.position) <= u.entityType.attack.get.attackRange =>
-            EntityAction(None, None, Some(AttackAction(Some(e.id), None)), None)
-          case e =>
-            EntityAction(None, None, Some(AttackAction(None, Some(AutoAttack(10, Seq())))), None)
-          //                EntityAction(Some(MoveAction(e.position, true, true)), None, Some(AttackAction(Some(e.id), None)), None)
-        })
+      //macroAi
+      //defenceMode
+      val myPotential = p(myReg.id.x)(myReg.id.y)
+      val (target, targetPotential) = myReg.neighbours9.map(x => (x, p(x.id.x)(x.id.y))).maxBy(_._2)
+      if (myPotential < targetPotential) {
+        (u.id, EntityAction(Some(MoveAction(target.center, true, true)), None, None, None))
       } else {
-        g.enemyEntities.minBy(e => u.position.distanceTo(e.position)) match {
-          case e if u.position.distanceTo(e.position) <= u.entityType.attack.get.attackRange =>
-            (u.id, EntityAction(None, None, Some(AttackAction(Some(e.id), None)), None))
-          case e if u.position.distanceTo(e.position) <= 5 =>
-            (u.id, EntityAction(None, None, Some(AttackAction(None, Some(AutoAttack(3, Seq())))), None))
-          //                EntityAction(Some(MoveAction(e.position, true, true)), None, Some(AttackAction(Some(e.id), None)), None)
-          case _ =>
-            //macroAi
-            //defenceMode
-            val myPotential = p(myReg.id.x)(myReg.id.y)
-            val (target, targetPotential) = myReg.neighbours9.map(x => (x, p(x.id.x)(x.id.y))).maxBy(_._2)
-            if (myPotential < targetPotential) {
-              (u.id, EntityAction(Some(MoveAction(target.center, true, true)), None, None, None))
-            } else {
-              (u.id, EntityAction(Some(MoveAction(myReg.center, true, true)), None, None, None))
-            }
-        }
+        (u.id, EntityAction(None, None, Some(AttackAction(None, Some(AutoAttack(g.regionsSize * 2, Seq())))), None))
       }
 
+
     }.toMap
-
   }
-
   /*(g.my(RANGED_UNIT) ++ g.my(MELEE_UNIT)).map { u =>
     (u.id, g.enemyEntities.minBy(e => u.position.distanceTo(e.position)) match {
       case e if u.position.distanceTo(e.position) <= u.entityType.attack.get.attackRange =>
