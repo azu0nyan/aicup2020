@@ -21,7 +21,7 @@ class MyStrategy {
   //  def productionLogic():Map[Int, EntityAction] =
   var totalTime = 0L
 
-  val showVisualiser = false
+  val showVisualiser = true
   var showVisualiserFollowCamera = false
 
   def initDebugDrawing(): Unit = {
@@ -141,10 +141,11 @@ class MyStrategy {
       if (playerView.currentTick == 0 | !GameInfo.firstReadHappened) {
         GameInfo.firstRead(playerView)
         GameInfo.firstReadHappened = true
+        res = FirstTickStrategy.getActions(playerView)
+      } else {
+        gameInfo = new strategy.GameInfo(playerView)
+        res = MacroStrategy.getActions
       }
-      gameInfo = new strategy.GameInfo(playerView)
-
-      res = MacroStrategy.getActions
 
 
 

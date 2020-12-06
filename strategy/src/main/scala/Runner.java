@@ -15,7 +15,7 @@ public class Runner {
 
     Runner(String host, int port, String token) throws IOException {
         Socket socket = new Socket(host, port);
-//        socket.setTcpNoDelay(true);
+        socket.setTcpNoDelay(true);
 
         inputStream = new BufferedInputStream(socket.getInputStream());
         outputStream = new BufferedOutputStream(socket.getOutputStream());
