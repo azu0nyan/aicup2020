@@ -11,7 +11,7 @@ object MinersAvoidDamageLogic extends StrategyPart {
       b => cellsInRangeV(b.position, 2, g.mapSize).exists { case (x, y) => g.dangerMap(x)(y) > 0 }
     ).flatMap { builder =>
       val nbrs = rectNeighboursV(builder.position, 1, g.mapSize, g.mapSize)
-        .filter { case (x, y) => !g.reservedForMovementCells.contains((x, y)) &&
+        .filter { case (x, y) => g.freeCell(x, y) &&
           g.entitiesMap(x, y).isEmpty //.exists(e => isBuilding(e.entityType) | e.entityType == RESOURCE
         }
       val target: Option[(Int, Int)] = nbrs.find { case (x, y) =>

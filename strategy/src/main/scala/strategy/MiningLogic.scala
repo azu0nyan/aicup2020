@@ -6,7 +6,7 @@ import model._
 object MiningLogic extends StrategyPart {
 
   def closestMine(point: (Int, Int))(implicit g: GameInfo): Option[Entity] =
-    g.minableResource.minByOption(r => r.position.distanceTo(point))
+    g.minableResource.filter(e => g.region(e.position.toProd).danger9 <= 15).minByOption(r => r.position.distanceTo(point))
 
   override def getActions(implicit g: GameInfo): ActionMap = {
     var res : Map[Int, EntityAction] = Map()

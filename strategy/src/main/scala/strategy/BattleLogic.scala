@@ -79,10 +79,10 @@ object BattleLogic extends StrategyPart {
     lazy val reward: Int = this.enemy_.keys.map(e => this.enemy(e).size * rewardPerUnit(e)).sum
 
 
-    lazy val reward9: Int = neighbours9.map(_.reward).sum
-    lazy val defence9: Int = neighbours9.map(_.defenceValue).sum
-    lazy val danger9: Int = neighbours9.map(_.danger).sum
-    lazy val power9: Int = neighbours9.map(_.power).sum
+    lazy val reward9: Int = (this +: neighbours9).map(_.reward).sum
+    lazy val defence9: Int = (this +: neighbours9).map(_.defenceValue).sum
+    lazy val danger9: Int = (this +: neighbours9).map(_.danger).sum
+    lazy val power9: Int = (this +: neighbours9).map(_.power).sum
 
     lazy val entities: Seq[Entity] = my_.values.flatten ++ enemy_.values.flatten toSeq
 
@@ -106,7 +106,7 @@ object BattleLogic extends StrategyPart {
 
 
     val attackTargets =
-      if (g.pw.currentTick < 100) Seq()
+      if (g.pw.currentTick < 150) Seq()
       else {
         val allTargets = g.allRegions.filter(x => x.reward > 0 && x.danger9 * 3 < g.myPower).sortBy(_.reward9)
         allTargets.take(allTargets.size / 2).map(x => (x, attackRegionPrice / 2)) ++
@@ -115,12 +115,13 @@ object BattleLogic extends StrategyPart {
 
 
     val wanderAround = if(needDefendWeLose.isEmpty && needDefendWeWin.isEmpty && attackTargets.isEmpty){
-      Seq(g.allRegions.filter(r => distance(r.id, (0, 0) ) == 4)).map(r => (wanderAroundPrice, r))
+      g.allRegions.filter(r => distance(r.id, (0, 0) ) == 5).map(r => (r, wanderAroundPrice))
     } else Seq()
 
 
     needDefendWeLose.map(x => (x, defendRegionPrice)) ++
-      needDefendWeWin.map(x => (x, defendWinRegionPrice)) ++
+      needDefendWeWin.map(x => if(x.danger9 * 2 < x.power9) (x, defendWinRegionPrice / 2) else (x, defendWinRegionPrice)) ++
+      wanderAround ++
       attackTargets
 
   }

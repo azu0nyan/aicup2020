@@ -245,4 +245,10 @@ class GameInfo(val pw: PlayerView) {
   var reservedForMovementCells: Set[(Int, Int)] = Set()
 
 
+  def probablyWalcable(x:Int, y:Int): Boolean = !reservedForMovementCells.contains((x, y)) &&
+    (entitiesMap(x, y).isEmpty || isUnit(entitiesMap(x, y).get.entityType))
+
+  def freeCell(x:Int, y:Int): Boolean = !reservedForMovementCells.contains((x, y)) && entitiesMap(x, y).isEmpty
+
+
 }

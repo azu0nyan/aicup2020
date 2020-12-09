@@ -100,13 +100,13 @@ object TacticsLogic extends StrategyPart {
 
     def goToBestPower(r: Entity): Option[(Int, EntityAction)] =
       cellsInRangeV(r.position, 1, g.mapSize)
-        .filterNot(x => g.reservedForMovementCells.contains(x)).maxByOption({ case (x, y) => g.powerMap(x)(y) })
+        .filter(x => g.freeCell(x.x, x.y)).maxByOption({ case (x, y) => g.powerMap(x)(y) })
         .filterNot(x => x == r.position.toProd)
         .map { case (x, y) => move(r, Vec2Int(x, y)) }
 
     def goToLeastDamageIn5(r: Entity): Option[(Int, EntityAction)] =
       cellsInRangeV(r.position, 1, g.mapSize)
-        .filterNot(x => g.reservedForMovementCells.contains(x))
+        .filter(x => g.freeCell(x.x, x.y))
         .minByOption({ case (x, y) => damageIn(x, y, 1) })
         .filterNot(x => x == r.position.toProd)
         .map { case (x, y) => move(r, Vec2Int(x, y)) }
@@ -116,22 +116,40 @@ object TacticsLogic extends StrategyPart {
     def rangerAi(r: Entity) = {
       val possibleDamageTaken = g.dangerMap(r.position.x)(r.position.y)
       val powerAtPosition = g.powerMap(r.position.x)(r.position.y)
+      val reg = g.region(r.position)
       if (possibleDamageTaken > 0) { //possible this turn damage
-        val stayAtPosition = possibleDamageTaken <= powerAtPosition
-        val weProbablyDead = possibleDamageTaken >= 3 * r.health
+        val eMelee1 = reg.enemyN9(Seq(MELEE_UNIT)).count(e => distance(e.position.toProd, r.position.toProd) <= 1)
+        val eMelee2 = reg.enemyN9(Seq(MELEE_UNIT)).count(e => distance(e.position.toProd, r.position.toProd) <= 2)
+        if(eMelee1 >= 1 && r.health > 5){
+          goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
+        } else if(eMelee1 >= 1){
+          rangerFight(r).orElse(goToBestPower(r)).map(res += _)
+        } else if(eMelee2 >= 1){
+          goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
+        } else {
+          rangerFight(r).orElse(goToBestPower(r)).map(res += _)
+        }
+
+
+       /* val stayAtPosition = possibleDamageTaken <= powerAtPosition
+        val weProbablyDead = possibleDamageTaken >=  r.health
         if (stayAtPosition | weProbablyDead) {
           rangerFight(r).orElse {
             Option.when(weProbablyDead)(goToBestPower(r)).flatten
           }.map {case (i, e) => res += i -> e}
         } else {
           goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
-        }
+        }*/
       } else {
         val neighDamage = damageIn(r.position.x, r.position.y, 1)
         if (neighDamage >= 5) { // neighbour cell on fire
-          val noDanger = powerAtPosition > neighDamage
-          if (noDanger) rangerFight(r).orElse(goToBestPower(r)).map(res += _)
-          else goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
+          val eMelee = reg.enemyN9(Seq(MELEE_UNIT)).count(e => distance(e.position.toProd, r.position.toProd) <= 2)
+          if(eMelee >= 1){
+            goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
+          } else {
+            rangerFight(r).orElse(goToBestPower(r)).map(res += _)
+          }
+
         } else rangerFight(r).map(res += _)
       }
     }
@@ -154,9 +172,13 @@ object TacticsLogic extends StrategyPart {
       } else {
         val neighDamage = damageIn(m.position.x, m.position.y, 2)
         if (neighDamage >= 5) { // neighbour cell on fire
-          gotToClosestEnemy(m, 5, Seq(RANGED_UNIT, MELEE_UNIT, TURRET))
-            .orElse(gotToClosestEnemy(m, 5, Seq(BUILDER_UNIT)))
-            .orElse(gotToClosestFriend(m, 5, Seq(MELEE_UNIT))).map(res += _)
+          if(reg.power9 >= reg.danger9 * 1.5) {
+            gotToClosestEnemy(m, 5, Seq(RANGED_UNIT, MELEE_UNIT, TURRET))
+              .orElse(gotToClosestEnemy(m, 5, Seq(BUILDER_UNIT)))
+              .orElse(gotToClosestFriend(m, 5, Seq(MELEE_UNIT))).map(res += _)
+          } else {
+            goToLeastDamageIn5(m).map(res += _)
+          }
         } else {
 
         }
