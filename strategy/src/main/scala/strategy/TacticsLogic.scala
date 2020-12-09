@@ -163,18 +163,17 @@ object TacticsLogic extends StrategyPart {
         val weProbablyDead = possibleDamageTaken >= m.health
         if (stayAtPosition | weProbablyDead) {
           meleeFight(m).orElse {
-            gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT, BUILDER_UNIT, TURRET))
+            gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT,  TURRET))
           }.map(res += _)
         } else {
 //          goToLeastDamageIn5(m).map(res += _)
-          gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT, BUILDER_UNIT, TURRET)).map(res += _)
+          gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT,  TURRET)).map(res += _)
         }
       } else {
         val neighDamage = damageIn(m.position.x, m.position.y, 2)
         if (neighDamage >= 5) { // neighbour cell on fire
           if(reg.power9 >= reg.danger9 * 1.5) {
             gotToClosestEnemy(m, 5, Seq(RANGED_UNIT, MELEE_UNIT, TURRET))
-              .orElse(gotToClosestEnemy(m, 5, Seq(BUILDER_UNIT)))
               .orElse(gotToClosestFriend(m, 5, Seq(MELEE_UNIT))).map(res += _)
           } else {
             goToLeastDamageIn5(m).map(res += _)
