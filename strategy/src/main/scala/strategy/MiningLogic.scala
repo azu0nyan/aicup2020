@@ -13,7 +13,7 @@ object MiningLogic extends StrategyPart {
 
      g.minableResource.foreach{r =>
       rectNeighboursV(r.position, 1).map(g.entitiesMap(_)).find {
-        case Some(e) if e.playerId.contains(g.me.id) && e.entityType == BUILDER_UNIT => true
+        case Some(e) if e.playerId.contains(g.me.id) && e.entityType == BUILDER_UNIT && !g.reservedUnits.contains(e) => true
         case _ => false
       }.flatten.foreach{
         e =>

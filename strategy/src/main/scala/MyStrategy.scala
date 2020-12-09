@@ -48,7 +48,7 @@ class MyStrategy {
 
     val pf = Drawing.addDrawer(g => {
       if (gameInfo != null) {
-        val pf = BattleLogic.pf(gameInfo)
+        val pf = BattleLogic.potentialField(gameInfo)
 
         for (i <- 0 until gameInfo.regionInSide; j <- 0 until gameInfo.regionInSide) {
           val reg = gameInfo.regions(i)(j)

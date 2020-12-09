@@ -7,7 +7,7 @@ object MinersAvoidDamageLogic extends StrategyPart {
 
 
   override def getActions(implicit g: GameInfo): ActionMap = {
-    g.my(BUILDER_UNIT).filter(
+    g.nonReservedWorkers.filter(
       b => cellsInRangeV(b.position, 2, g.mapSize).exists { case (x, y) => g.dangerMap(x)(y) > 0 }
     ).flatMap { builder =>
       val nbrs = rectNeighboursV(builder.position, 1, g.mapSize, g.mapSize)
@@ -28,7 +28,10 @@ object MinersAvoidDamageLogic extends StrategyPart {
         }
       )
 
-      target.map(t => (builder.id, EntityAction(Some(MoveAction(t, true, false)),None, None, None )))
+      target.map { t =>
+        g.reservedUnits += builder
+        (builder.id, EntityAction(Some(MoveAction(t, true, false)), None, None, None))
+      }
     }
   }.toMap
 }

@@ -5,7 +5,7 @@ import model._
 
 import scala.collection.mutable
 
-object TacticsLogic {
+object TacticsLogic extends StrategyPart {
 
   def potentialTargets(who: Entity, types: Seq[EntityType])(implicit g: GameInfo): Seq[Entity] = {
     g.region(who.position).enemyN9(types).filter(target => canAttack(who, target))
@@ -139,16 +139,17 @@ object TacticsLogic {
     def meleeAi(m: Entity) = {
       val possibleDamageTaken = g.dangerMap(m.position.x)(m.position.y)
       val powerAtPosition = g.powerMap(m.position.x)(m.position.y)
+      val reg = g.region(m.position)
       if (possibleDamageTaken > 0) { //possible this turn damage
-        val stayAtPosition = possibleDamageTaken <= powerAtPosition
+        val stayAtPosition = reg.power9 >= reg.danger9 * 1.1
         val weProbablyDead = possibleDamageTaken >= m.health
         if (stayAtPosition | weProbablyDead) {
           meleeFight(m).orElse {
-            gotToClosestEnemy(m, 5, Seq(RANGED_UNIT, MELEE_UNIT, BUILDER_UNIT, TURRET))
+            gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT, BUILDER_UNIT, TURRET))
           }.map(res += _)
         } else {
 //          goToLeastDamageIn5(m).map(res += _)
-          gotToClosestEnemy(m, 5, Seq(RANGED_UNIT, MELEE_UNIT, BUILDER_UNIT, TURRET)).map(res += _)
+          gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT, BUILDER_UNIT, TURRET)).map(res += _)
         }
       } else {
         val neighDamage = damageIn(m.position.x, m.position.y, 2)
@@ -162,12 +163,20 @@ object TacticsLogic {
       }
     }
 
+    def turretAi(m:Entity) = {
+      rangerFight(m)
+    }
+
     for (r <- g.myRangedUnits.filter(r => !g.reservedUnits.contains(r))) {
       rangerAi(r)
     }
 
-    for (r <- g.myMeleeUnits.filter(r => !g.reservedUnits.contains(r))) {
-      meleeAi(r)
+    for (t <- g.my(TURRET).filter(t => !g.reservedUnits.contains(t))) {
+      turretAi(t)
+    }
+
+    for (m <- g.myMeleeUnits.filter(m => !g.reservedUnits.contains(m))) {
+      meleeAi(m)
     }
 
     res.toMap

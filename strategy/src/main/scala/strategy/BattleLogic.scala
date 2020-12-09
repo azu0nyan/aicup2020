@@ -97,10 +97,14 @@ object BattleLogic extends StrategyPart {
   val defendRegionPrice = 10
   val defendWinRegionPrice = 8
   val attackRegionPrice = 8
+  val wanderAroundPrice = 4
 
   def importanceMap(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
     val (needDefendWeLose, needDefendWeWin) =
       g.allRegions.filter(x => x.defence9 > 0 && x.danger9 > 0).partition(x => x.power9 < x.danger9)
+
+
+
     val attackTargets =
       if (g.pw.currentTick < 100) Seq()
       else {
@@ -110,7 +114,9 @@ object BattleLogic extends StrategyPart {
       }
 
 
-
+    val wanderAround = if(needDefendWeLose.isEmpty && needDefendWeWin.isEmpty && attackTargets.isEmpty){
+      Seq(g.allRegions.filter(r => distance(r.id, (0, 0) ) == 4)).map(r => (wanderAroundPrice, r))
+    } else Seq()
 
 
     needDefendWeLose.map(x => (x, defendRegionPrice)) ++
@@ -119,7 +125,7 @@ object BattleLogic extends StrategyPart {
 
   }
 
-  def pf(implicit g: GameInfo): Array[Array[Int]] = {
+  def potentialField(implicit g: GameInfo): Array[Array[Int]] = {
     val res = Array.tabulate[Int](g.regionInSide, g.regionInSide)((x, y) => Int.MinValue)
     val queue: mutable.PriorityQueue[(Int, Int, Int)] = mutable.PriorityQueue()(Ordering.by(_._3))
 
@@ -158,7 +164,7 @@ object BattleLogic extends StrategyPart {
     //    }
 
 
-    val p = pf(g)
+    val p = potentialField(g)
 
 
     (g.my(RANGED_UNIT) ++ g.my(MELEE_UNIT)).filterNot(g.reservedUnits.contains).map { u =>
