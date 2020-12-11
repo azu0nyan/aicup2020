@@ -1,8 +1,9 @@
 package strategy
 
+import com.sun.tools.javac.api.JavacTaskPool.Worker
 import helpers.ArrayGrid
 import model.EntityType._
-import model.{AttackProperties, Entity, EntityProperties, EntityType, Player, PlayerView, Vec2Int}
+import model.{AttackAction, AttackProperties, Entity, EntityAction, EntityProperties, EntityType, MoveAction, Player, PlayerView, RepairAction, Vec2Int}
 import strategy.BattleLogic.RegionInfo
 
 import scala.annotation.tailrec
@@ -79,29 +80,27 @@ class GameInfo(val pw: PlayerView) {
   private val pmy: Map[EntityType, Seq[Entity]] = entitiesByPlayer(me).groupBy(_.entityType)
   def my(e: EntityType): Seq[Entity] = pmy.getOrElse(e, Seq())
 
-  val entitiesMap: ArrayGrid[Option[Entity]] =
-    new ArrayGrid[Option[Entity]](Array.fill[Option[Entity]](pw.mapSize * pw.mapSize)(None), (pw.mapSize, pw.mapSize))
+  val entitiesMap: Array[Array[Option[Entity]]] = Array.fill[Option[Entity]](mapSize, mapSize)(None)
   pw.entities.foreach(e => {
     for (i <- e.position.x until (e.position.x + e.entityType.size); j <- e.position.y until (e.position.y + e.entityType.size)) {
-      entitiesMap.setValue((i, j), Some(e))
+      entitiesMap(i)(j) = Some(e)
     }
   })
+  def entitiesMap(tuple: (Int, Int)): Option[Entity] = entitiesMap(tuple._1)(tuple._2)
 
 
+  def cellToEntity(pos: (Int, Int)): Option[Entity] = entitiesMap(pos)
 
-  def cellToEntity(pos: (Int, Int)): Option[Entity] = entitiesMap.valueAtUnsafe(pos)
-
-  val cantBuildArea: ArrayGrid[Boolean] =
-    new ArrayGrid[Boolean](Array.fill[Boolean](pw.mapSize * pw.mapSize)(false), (pw.mapSize, pw.mapSize))
+  val cantBuildArea: Array[Array[Boolean]] = Array.fill[Boolean](mapSize, mapSize)(false)
 
   pw.entities.foreach(e => {
     if (isProductionBuilding(e.entityType)) {
       for (i <- (e.position.x - 1) until (e.position.x + e.entityType.size + 1); j <- (e.position.y - 1) until (e.position.y + e.entityType.size + 1)) {
-        cantBuildArea.setValue((i, j), true)
+        cantBuildArea(i)(j) = true
       }
     } else {
       for (i <- e.position.x until (e.position.x + e.entityType.size); j <- e.position.y until (e.position.y + e.entityType.size)) {
-        cantBuildArea.setValue((i, j), true)
+        cantBuildArea(i)(j) = true
       }
     }
   })
@@ -163,36 +162,52 @@ class GameInfo(val pw: PlayerView) {
     case Some(seq) => Some(e +: seq)
     case None => Some(Seq(e))
   }
-  for (e <- resources) region(e.position).resources += e.health
+  for (e <- resources) region(e.position).resources += 1
 
-  def isWalkable(xy:(Int, Int)):Boolean = entitiesMap(xy).isEmpty && !reservedForMovementCells.contains(xy)
+  //  def isWalkable(xy:(Int, Int)):Boolean = entitiesMap(xy).isEmpty && !reservedForMovementCells.contains(xy)
 
-  def findClosestReachable(x:Int, y:Int, filter: Entity => Boolean, maxDistance:Int) :Option[(Entity, Seq[(Int, Int)])] = {
-    val visited:mutable.Set[(Int, Int)] = mutable.Set()
-    val toVisit:mutable.Queue[(Int, Int)] = mutable.Queue()
-    val cameFrom:mutable.Map[(Int, Int), (Int, Int)] = mutable.Map()
+  /** maxDistance >= 1 */
+  def findClosestReachable(x: Int, y: Int, filter: Entity => Boolean, maxDistance: Int, avoidUnits: Boolean = false): Option[(Entity, Seq[(Int, Int)])] = {
+    def potentiallyWalkable(xy: (Int, Int)): Boolean =
+      entitiesMap(xy).isEmpty || (!avoidUnits && isUnit(entitiesMap(xy).get.entityType))
+
+
+    val visited: mutable.Set[(Int, Int)] = mutable.Set()
+    val toVisit: mutable.Queue[(Int, Int)] = mutable.Queue()
+    val cameFrom: mutable.Map[(Int, Int), (Int, Int)] = mutable.Map()
     toVisit += ((x, y))
     visited += ((x, y))
 
-    /**without first node**/
-    def  reconstructPath(to:(Int,Int)) :Seq[(Int, Int)] = cameFrom.get (to) match {
+    //cant start path from inaccessible cell
+    val (canGo, cantGo) = rectNeighbours(x, y, 1, mapSize, mapSize).partition(to => canMoveToNextTurn((x, y), to))
+    toVisit ++= canGo
+    cameFrom ++= canGo.map(c => c -> (x, y))
+    visited ++= canGo
+    visited ++= cantGo
+
+    /** without first node* */
+    def reconstructPath(to: (Int, Int)): Seq[(Int, Int)] = cameFrom.get(to) match {
       case None => Seq()
       case Some(from) => to +: reconstructPath(from)
     }
 
-    var found = false
-    while (toVisit.nonEmpty){
+    while (toVisit.nonEmpty) {
       val (curx, cury) = toVisit.dequeue()
-      val curE = entitiesMap(curx, cury)
-      if(curE.nonEmpty && filter(curE.get)){
-        return Some((curE.get, reconstructPath((curx, cury)).reverse))
-      }
-      rectNeighbours(curx, cury, 1, g.mapSize).foreach{
-         xy => if(distance(xy, (x, y))<= maxDistance && isWalkable(xy) && !visited.contains(xy)){
-           cameFrom(xy) = (x, y)
-           visited += xy
-           toVisit += xy
-         }
+      val target = rectNeighbours(curx, cury, 1, mapSize, mapSize)
+        .flatMap { case (x, y) => entitiesMap(x, y) }
+        .find(e => filter(e))
+
+      if (target.nonEmpty) {
+        return Some((target.get, reconstructPath((curx, cury)).reverse))
+      } else {
+        rectNeighbours(curx, cury, 1, mapSize, mapSize).foreach {
+          neigh =>
+            if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh) && !visited.contains(neigh)) {
+              cameFrom(neigh) = (curx, cury)
+              visited += neigh
+              toVisit += neigh
+            }
+        }
       }
     }
     return None
@@ -224,11 +239,11 @@ class GameInfo(val pw: PlayerView) {
   var reservedEnemy: Set[Entity] = Set()
 
   val damageToEnemy_ : mutable.Map[Entity, Int] = mutable.Map()
-  def addDamageTo(enemy: Entity, damage: Int):Unit = damageToEnemy_.updateWith(enemy) {
+  def addDamageTo(enemy: Entity, damage: Int): Unit = damageToEnemy_.updateWith(enemy) {
     case Some(value) => Some(value + damage)
     case None => Some(damage)
   }
-  def getDamageTo(enemy: Entity):Int = damageToEnemy_.getOrElse(enemy, 0)
+  def getDamageTo(enemy: Entity): Int = damageToEnemy_.getOrElse(enemy, 0)
 
   var reservedUnits: Set[Entity] = Set()
 
@@ -243,12 +258,62 @@ class GameInfo(val pw: PlayerView) {
   def nonReservedWorkers: Set[Entity] = myWorkers.toSet &~ reservedWorkers.toSet
 
   var reservedForMovementCells: Set[(Int, Int)] = Set()
+  //  var movingEntities:mutable.Map[Enti]
+
+  var nextTurnPosition: Map[Entity, (Int, Int)] = Map()
+
+  def canMoveToNextTurn(from: (Int, Int), to: (Int, Int)): Boolean = {
+    !reservedForMovementCells.contains(to) && // cell not reserved
+      distance(from, to) <= 1 && {
+      entitiesMap(to).isEmpty || { //destination cell empty
+        val atDestination = entitiesMap(to).get //entity at destination moving to other cell
+        nextTurnPosition.contains(atDestination) && nextTurnPosition(atDestination) != from //not our cell preventing collision
+      }
+    }
+  }
+
+  //  def probablyWalkable(x:Int, y:Int): Boolean = !reservedForMovementCells.contains((x, y)) &&
+  //    (entitiesMap(x, y).isEmpty || isUnit(entitiesMap(x, y).get.entityType))
+
+  //  def freeCellNextTurn(x: Int, y: Int): Boolean = !reservedForMovementCells.contains((x, y)) && {
+  //    entitiesMap(x, y).isEmpty ||
+  //      movingEntities.contains(entitiesMap(x, y).get)
+  //  }
 
 
-  def probablyWalcable(x:Int, y:Int): Boolean = !reservedForMovementCells.contains((x, y)) &&
-    (entitiesMap(x, y).isEmpty || isUnit(entitiesMap(x, y).get.entityType))
+  def attack(who: Entity, target: Entity)(implicit g: GameInfo): (Int, EntityAction) = {
+    reservedUnits += who
+    reservedForMovementCells += who.position.toProd
+    nextTurnPosition += who -> who.position.toProd
+    addDamageTo(target, who.damage)
+    (who.id, EntityAction(None, None, Some(AttackAction(Some(target.id), None)), None))
+  }
 
-  def freeCell(x:Int, y:Int): Boolean = !reservedForMovementCells.contains((x, y)) && entitiesMap(x, y).isEmpty
+  def move(who: Entity, where: Vec2Int)(implicit g: GameInfo): (Int, EntityAction) = {
+    reservedUnits += who
+    nextTurnPosition += who -> where.toProd
+    reservedForMovementCells += where.toProd
+    (who.id, EntityAction(Some(MoveAction(where, false, false)), None, None, None))
+  }
 
+  def repair(worker: Entity, target: Entity): (Int, EntityAction) = {
+    reservedUnits += worker
+    reservedForMovementCells += worker.position.toProd
+    nextTurnPosition += worker -> worker.position.toProd
+    (worker.id, EntityAction(None, None, None, Some(RepairAction(target.id))))
+  }
 
+  def mine(worker: Entity, resource: Entity): (Int, EntityAction) = {
+    g.reservedUnits += worker
+    g.minableResource -= resource
+    reservedForMovementCells += worker.position.toProd
+    nextTurnPosition += worker -> worker.position.toProd
+    (worker.id, EntityAction(None, None, Some(AttackAction(Some(resource.id), None)), None))
+  }
+
+  def goToRegion(unit:Entity, reg:RegionInfo, closest:Boolean, break:Boolean) :(Int, EntityAction) = {
+    g.reservedUnits += unit
+    //todo
+    (unit.id, EntityAction(Some(MoveAction(reg.center, closest, break)),None, None, None))
+  }
 }

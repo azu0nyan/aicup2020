@@ -59,7 +59,6 @@ object ProductionLogic extends StrategyPart {
         (canProduceWorker && workers < w) | (canProduceMelee && melee < m) | (canProduceRanged && ranged < r)
       }.map {
         case Composition(w, m, r) =>
-          println(w, m, r)
           (
             if (canProduceWorker && workers < w) w - workers else 0,
             if (canProduceMelee && melee < m) m - melee else 0,
@@ -97,7 +96,7 @@ object ProductionLogic extends StrategyPart {
     g.populationFree >= u.populationUse && g.myMinerals >= g.unitCost(u) && g.my(unitToBuilderBase(u)).exists(b => b.active && !g.reservedBuildings.contains(b))
 
 
-  def findFreeCellAround(e: Entity)(implicit g: GameInfo): Option[(Int, Int)] = rectNeighbours(e.position.x, e.position.y, e.entityType.size)
+  def findFreeCellAround(e: Entity)(implicit g: GameInfo): Option[(Int, Int)] = rectNeighbours(e.position.x, e.position.y, e.entityType.size, g.mapSize, g.mapSize)
     .find(g.cellToEntity(_).isEmpty)
 
 

@@ -25,20 +25,20 @@ package object strategy extends VecOps {
   implicit def fromVec2Int(v: Vec2Int): (Int, Int) = (v.x, v.y)
 
 
-  def rectArea(minx: Int, miny: Int, sizex: Int, sizey: Int, maxX: Int = Int.MaxValue, maxY: Int = Int.MaxValue): Seq[(Int, Int)] =
+  def rectArea(minx: Int, miny: Int, sizex: Int, sizey: Int, maxX: Int , maxY: Int ): Seq[(Int, Int)] =
     for (i <- math.max(0, minx) until math.min(minx + sizex, maxX);
          j <- math.max(0, miny) until math.min(miny + sizey, maxY)) yield (i, j)
 
-  def neighbours9Pos(x: Int, y: Int, maxX: Int = Int.MaxValue, maxY: Int = Int.MaxValue): Seq[(Int, Int)] =
+  def neighbours9Pos(x: Int, y: Int, maxX: Int , maxY: Int ): Seq[(Int, Int)] =
     for (
       i <- math.max(0, x - 1) to math.min(x + 1, maxX - 1);
       j <- math.max(0, y - 1) to math.min(y + 1, maxY - 1) if i != x || j != y) yield (i, j)
 
 
-  def rectNeighboursV(v: Vec2Int, size: Int, maxX: Int = Int.MaxValue, maxY: Int = Int.MaxValue): Seq[(Int, Int)] =
+  def rectNeighboursV(v: Vec2Int, size: Int, maxX: Int , maxY: Int ): Seq[(Int, Int)] =
     rectNeighbours(v.x, v.y, size, maxX, maxY)
 
-  def rectNeighbours(x: Int, y: Int, size: Int, maxX: Int = Int.MaxValue, maxY: Int = Int.MaxValue): Seq[(Int, Int)] =
+  def rectNeighbours(x: Int, y: Int, size: Int, maxX: Int, maxY: Int ): Seq[(Int, Int)] =
     (for (i <- 0 until size) yield Seq((x - 1, y + i), (x + size, y + i), (x + i, y - 1), (x + i, y + size))).flatten
       .filter { case (x, y) => x >= 0 && y >= 0 && x < maxX && y < maxY }
 

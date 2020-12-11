@@ -50,12 +50,12 @@ object BattleLogic extends StrategyPart {
 
     def enemyN9(e:Seq[EntityType]):Seq[Entity] = e.flatMap(e => enemy(e) ++ neighbours9.flatMap(_.enemy(e))).toSeq
 
-    def neighbours4: Seq[RegionInfo] = rectNeighbours(id._1, id._2, g.regionInSide, g.regionInSide).map { case (x, y) => g.regions(x)(y) }
+    def neighbours4: Seq[RegionInfo] = rectNeighbours(id._1, id._2, 1, g.regionInSide, g.regionInSide).map { case (x, y) => g.regions(x)(y) }
 
     def neighbours9: Seq[RegionInfo] = neighbours9Pos(id._1, id._2, g.regionInSide, g.regionInSide).map { case (x, y) => g.regions(x)(y) }
 
 
-    def freeCells: Int = g.regionsSize * g.regionsSize - resources / RESOURCE.maxHealth
+    def freeCells: Int = g.regionsSize * g.regionsSize - resources
 
 
     lazy val power: Int =

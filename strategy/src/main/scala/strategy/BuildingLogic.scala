@@ -15,14 +15,15 @@ object BuildingLogic {
         case (x, y) if x == y => Seq((x, x))
         case (x, y) => Seq((x, y), (y, x))
       } ++      ((5 until baseArea by 4)).flatMap(x => ((5 until baseArea by 4)).map(y => (x, y)))
+      .filter(_ != (3, 0))
 
 
   def canBuildAt(pos: (Int, Int), size: Int)(implicit g: GameInfo): Boolean =
-    (0 until size).flatMap(x => (0 until (size)).map(y => !g.cantBuildArea(pos._1 + x, pos._2 + y))).forall(x => x)
+    (0 until size).flatMap(x => (0 until (size)).map(y => !g.cantBuildArea(pos._1 + x)( pos._2 + y))).forall(x => x)
 
   def findCurrentTurnBuildingSpotForHouse(size: Int)(implicit g: GameInfo): Option[(Int, Int, Entity)] =
     houseSpots.to(LazyList).filter(pos => canBuildAt(pos, size)).flatMap { buildAt =>
-      g.nonReservedWorkers.find(b => rectNeighbours(b.position.x, b.position.y, b.entityType.size).exists(n => sqContains(buildAt.x, buildAt.y, size, n.x, n.y)))
+      g.nonReservedWorkers.find(b => rectNeighbours(b.position.x, b.position.y, b.entityType.size, g.mapSize, g.mapSize).exists(n => sqContains(buildAt.x, buildAt.y, size, n.x, n.y)))
         .map { e => (buildAt._1, buildAt._2, e) }
     }.headOption
 

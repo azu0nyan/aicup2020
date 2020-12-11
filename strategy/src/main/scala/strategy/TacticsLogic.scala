@@ -40,18 +40,6 @@ object TacticsLogic extends StrategyPart {
     ).map(_._1)
   }
 
-  def attack(who: Entity, target: Entity)(implicit g: GameInfo): (Int, EntityAction) = {
-    g.reservedUnits += who
-    g.reservedForMovementCells += who.position.toProd
-    g.addDamageTo(target, who.damage)
-    (who.id, EntityAction(None, None, Some(AttackAction(Some(target.id), None)), None))
-  }
-
-  def move(who: Entity, where: Vec2Int)(implicit g: GameInfo): (Int, EntityAction) = {
-    g.reservedUnits += who
-    g.reservedForMovementCells += where.toProd
-    (who.id, EntityAction(Some(MoveAction(where, false, false)), None, None, None))
-  }
 
   def getActions(implicit g: GameInfo): Map[Int, EntityAction] = {
     var res: mutable.Map[Int, EntityAction] = mutable.Map()
@@ -68,7 +56,7 @@ object TacticsLogic extends StrategyPart {
       units <- findLethal(enemy);
       u <- units) {
       g.reservedEnemy += enemy
-      res += attack(u, enemy)
+      res += g.attack(u, enemy)
     }
 
 
@@ -80,36 +68,42 @@ object TacticsLogic extends StrategyPart {
         .orElse(findTargetToAttack(r, Seq(MELEE_UNIT)))
         .orElse(findTargetToAttack(r, Seq(BUILDER_UNIT)))
         .orElse(findTargetToAttack(r, Seq(TURRET))).map {
-        e => attack(r, e)
+        e => g.attack(r, e)
       }
     }
 
     def meleeFight(r: Entity) = rangerFight(r)
 
 
-    def gotToClosestEnemy(r: Entity, maxRange: Int, types: Seq[EntityType]) =
-      g.findClosestReachable(r.position.x, r.position.y, x => x.isEnemy && types.contains(x.entityType), maxRange).map {
-        case (entity, path) => move(entity, path.head)
+    def gotToClosest(r: Entity, maxRange: Int, filter: Entity => Boolean): Option[(Int, EntityAction, Entity)] =
+      g.findClosestReachable(r.position.x, r.position.y, filter, maxRange).map {
+        case (entity, path) =>
+          val (i, a) = g.move(r, path.head)
+          (i, a, entity)
       }
+
+    def gotToClosestEnemy(r: Entity, maxRange: Int, types: Seq[EntityType]): Option[(Int, EntityAction, Entity)] =
+      gotToClosest(r, maxRange, x => x.isEnemy && types.contains(x.entityType))
+
 
     def gotToClosestFriend(r: Entity, maxRange: Int, types: Seq[EntityType]) =
       g.findClosestReachable(r.position.x, r.position.y, x => x != r && !x.isEnemy && types.contains(x.entityType), maxRange)
         .filter(x => x._1.position.distanceTo(r.position) != 1).map { //we already close to closest
-        case (entity, path) => move(entity, path.head)
+        case (entity, path) => g.move(r, path.head)
       }
 
     def goToBestPower(r: Entity): Option[(Int, EntityAction)] =
       cellsInRangeV(r.position, 1, g.mapSize)
-        .filter(x => g.freeCell(x.x, x.y)).maxByOption({ case (x, y) => g.powerMap(x)(y) })
+        .filter(x => g.canMoveToNextTurn(r.position.toProd, x)).maxByOption({ case (x, y) => g.powerMap(x)(y) })
         .filterNot(x => x == r.position.toProd)
-        .map { case (x, y) => move(r, Vec2Int(x, y)) }
+        .map { case (x, y) => g.move(r, Vec2Int(x, y)) }
 
     def goToLeastDamageIn5(r: Entity): Option[(Int, EntityAction)] =
       cellsInRangeV(r.position, 1, g.mapSize)
-        .filter(x => g.freeCell(x.x, x.y))
+        .filter(x => g.canMoveToNextTurn(r.position.toProd, x))
         .minByOption({ case (x, y) => damageIn(x, y, 1) })
         .filterNot(x => x == r.position.toProd)
-        .map { case (x, y) => move(r, Vec2Int(x, y)) }
+        .map { case (x, y) => g.move(r, Vec2Int(x, y)) }
 
     def damageIn(x: Int, y: Int, size: Int): Int = cellsInRange(x, y, size, g.mapSize).map { case (x, y) => g.dangerMap(x)(y) }.sum
 
@@ -120,31 +114,31 @@ object TacticsLogic extends StrategyPart {
       if (possibleDamageTaken > 0) { //possible this turn damage
         val eMelee1 = reg.enemyN9(Seq(MELEE_UNIT)).count(e => distance(e.position.toProd, r.position.toProd) <= 1)
         val eMelee2 = reg.enemyN9(Seq(MELEE_UNIT)).count(e => distance(e.position.toProd, r.position.toProd) <= 2)
-        if(eMelee1 >= 1 && r.health > 5){
+        if (eMelee1 >= 1 && r.health > 5) {
           goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
-        } else if(eMelee1 >= 1){
+        } else if (eMelee1 >= 1) {
           rangerFight(r).orElse(goToBestPower(r)).map(res += _)
-        } else if(eMelee2 >= 1){
+        } else if (eMelee2 >= 1) {
           goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
         } else {
           rangerFight(r).orElse(goToBestPower(r)).map(res += _)
         }
 
 
-       /* val stayAtPosition = possibleDamageTaken <= powerAtPosition
-        val weProbablyDead = possibleDamageTaken >=  r.health
-        if (stayAtPosition | weProbablyDead) {
-          rangerFight(r).orElse {
-            Option.when(weProbablyDead)(goToBestPower(r)).flatten
-          }.map {case (i, e) => res += i -> e}
-        } else {
-          goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
-        }*/
+        /* val stayAtPosition = possibleDamageTaken <= powerAtPosition
+         val weProbablyDead = possibleDamageTaken >=  r.health
+         if (stayAtPosition | weProbablyDead) {
+           rangerFight(r).orElse {
+             Option.when(weProbablyDead)(goToBestPower(r)).flatten
+           }.map {case (i, e) => res += i -> e}
+         } else {
+           goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
+         }*/
       } else {
         val neighDamage = damageIn(r.position.x, r.position.y, 1)
         if (neighDamage >= 5) { // neighbour cell on fire
           val eMelee = reg.enemyN9(Seq(MELEE_UNIT)).count(e => distance(e.position.toProd, r.position.toProd) <= 2)
-          if(eMelee >= 1){
+          if (eMelee >= 1) {
             goToLeastDamageIn5(r).orElse(rangerFight(r)).orElse(goToBestPower(r)).map(res += _)
           } else {
             rangerFight(r).orElse(goToBestPower(r)).map(res += _)
@@ -154,26 +148,37 @@ object TacticsLogic extends StrategyPart {
       }
     }
 
+    var rangedTargets: Set[Entity] = Set()
+
+    def followDifferentRangers(m: Entity): Option[(Int, EntityAction)] = {
+      gotToClosest(m, 6, x => x.isEnemy && x.entityType == RANGED_UNIT && !rangedTargets.contains(x)).map { case (i, a, e) =>
+        rangedTargets += e
+        (i, a)
+      }
+    }
+
+
     def meleeAi(m: Entity) = {
       val possibleDamageTaken = g.dangerMap(m.position.x)(m.position.y)
       val powerAtPosition = g.powerMap(m.position.x)(m.position.y)
       val reg = g.region(m.position)
       if (possibleDamageTaken > 0) { //possible this turn damage
-        val stayAtPosition = reg.power9 >= reg.danger9 * 1.1
-        val weProbablyDead = possibleDamageTaken >= m.health
-        if (stayAtPosition | weProbablyDead) {
-          meleeFight(m).orElse {
-            gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT,  TURRET))
-          }.map(res += _)
-        } else {
-//          goToLeastDamageIn5(m).map(res += _)
-          gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT,  TURRET)).map(res += _)
-        }
+
+        meleeFight(m).orElse(followDifferentRangers(m))
+          .orElse {
+            gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT, TURRET)).map { case (i, a, _) => (i, a) }
+          }
+          .map(res += _)
+
+
       } else {
         val neighDamage = damageIn(m.position.x, m.position.y, 2)
         if (neighDamage >= 5) { // neighbour cell on fire
-          if(reg.power9 >= reg.danger9 * 1.5) {
-            gotToClosestEnemy(m, 5, Seq(RANGED_UNIT, MELEE_UNIT, TURRET))
+          if (reg.power9 >= reg.danger9 * 1.5) {
+            followDifferentRangers(m)
+              .orElse {
+                gotToClosestEnemy(m, 6, Seq(RANGED_UNIT, MELEE_UNIT, TURRET)).map { case (i, a, _) => (i, a) }
+              }
               .orElse(gotToClosestFriend(m, 5, Seq(MELEE_UNIT))).map(res += _)
           } else {
             goToLeastDamageIn5(m).map(res += _)
@@ -184,7 +189,7 @@ object TacticsLogic extends StrategyPart {
       }
     }
 
-    def turretAi(m:Entity) = {
+    def turretAi(m: Entity) = {
       rangerFight(m)
     }
 
@@ -201,6 +206,7 @@ object TacticsLogic extends StrategyPart {
     }
 
     res.toMap
-  }
 
+
+  }
 }

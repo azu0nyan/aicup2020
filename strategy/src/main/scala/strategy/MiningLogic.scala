@@ -2,39 +2,75 @@ package strategy
 
 import model.EntityType._
 import model._
+import strategy.BattleLogic.RegionInfo
 
 object MiningLogic extends StrategyPart {
 
-  def closestMine(point: (Int, Int))(implicit g: GameInfo): Option[Entity] =
-    g.minableResource.filter(e => g.region(e.position.toProd).danger9 <= 15).minByOption(r => r.position.distanceTo(point))
+  val shortMineDistance = 7
 
+  val mediumMineDistance = 15
+
+  val maxDangerToStay = 15
+
+  /* def closestMine(point: (Int, Int))(implicit g: GameInfo): Option[Entity] =
+     g.minableResource.filter(e => g.region(e.position.toProd).danger9 <= 15)
+       .filter(m => rectNeighboursV(m.position, 1, g.mapSize, g.mapSize).exists(ne => g.))
+       .minByOption(r => r.position.distanceTo(point))
+ */
   override def getActions(implicit g: GameInfo): ActionMap = {
-    var res : Map[Int, EntityAction] = Map()
 
-     g.minableResource.foreach{r =>
-      rectNeighboursV(r.position, 1).map(g.entitiesMap(_)).find {
-        case Some(e) if e.playerId.contains(g.me.id) && e.entityType == BUILDER_UNIT && !g.reservedUnits.contains(e) => true
-        case _ => false
-      }.flatten.foreach{
-        e =>
-          g.reservedUnits += e
-          g.minableResource -= r
-          res += (e.id -> EntityAction(None, None, Some(AttackAction(Some(r.id), None)), None ))
+    var res: Map[Int, EntityAction] = Map()
+    //mine neighbours if possible
+    g.nonReservedWorkers
+      .map(w => (w, rectNeighboursV(w.position, 1, g.mapSize, g.mapSize)
+        .find { case (x, y) => g.entitiesMap(x)(y).exists(_.entityType == RESOURCE) })
+      )
+      .foreach {
+        case (worker, Some((x, y))) =>
+          res += g.mine(worker, g.entitiesMap(x)(y).get)
+        case _ =>
       }
+    //go to near resource if possible
+    g.nonReservedWorkers
+      .foreach { worker =>
+        g.findClosestReachable(worker.position.x, worker.position.y, x =>     g.minableResource.contains(x), shortMineDistance, avoidUnits = true)
+          .foreach {
+            case (resource, Seq()) =>
+              res += g.mine(worker, resource)
+            case (resource, x) =>
+              res += g.move(worker, x.head)
+              g.minableResource -= resource
+          }
+      }
+
+    //go to near if no danger
+    g.nonReservedWorkers.filter(w => g.region(w.position).danger9 <= maxDangerToStay)
+      .foreach { worker =>
+        g.findClosestReachable(worker.position.x, worker.position.y, x =>
+          g.minableResource.contains(x), mediumMineDistance, avoidUnits = true)
+          .foreach {
+            case (resource, Seq()) =>
+              res += g.mine(worker, resource)
+            case (resource, x) =>
+              res += g.move(worker, x.head)
+              g.minableResource -= resource
+          }
+      }
+
+    val mineRegions: Seq[RegionInfo] = g.regions.flatten
+      .filter(r => r.danger9 <= maxDangerToStay && r.resources >= 0 && r.resources >= r.my(BUILDER_UNIT).size).sortBy(-_.resources)
+
+    g.nonReservedWorkers.foreach { w =>
+      val reg = g.region(w.position)
+      mineRegions.sortBy(r => distance(r.id, reg.id))
+      mineRegions.headOption.foreach{reg =>
+
+        res += g.goToRegion(w, reg, true, true)
+
+      }
+
     }
 
-    if (g.resources.nonEmpty) g.nonReservedWorkers.foreach { worker =>
-      closestMine(worker.position).foreach { cl =>
-        g.minableResource -= cl
-        g.reservedUnits += worker
-        res += (worker.id -> EntityAction(
-          Some(MoveAction(cl.position, true, false)),
-          None,
-          Some(AttackAction(Some(cl.id), None)),
-          None
-        ))
-      }
-    }
     res
 
 

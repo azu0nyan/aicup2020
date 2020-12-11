@@ -59,7 +59,7 @@ class MyStrategy {
   }
 
 
-  val showVisualiser = false
+  val showVisualiser = true
   var visualiserShown = false
   var showVisualiserFollowCamera = false
 //  var debugLastAc
