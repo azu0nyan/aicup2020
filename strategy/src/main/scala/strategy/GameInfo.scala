@@ -162,7 +162,7 @@ class GameInfo(val pw: PlayerView) {
     case Some(seq) => Some(e +: seq)
     case None => Some(Seq(e))
   }
-  for (e <- resources) region(e.position).resources += 1
+  for (e <- resources) region(e.position).resources += e
 
   //  def isWalkable(xy:(Int, Int)):Boolean = entitiesMap(xy).isEmpty && !reservedForMovementCells.contains(xy)
 
@@ -316,4 +316,6 @@ class GameInfo(val pw: PlayerView) {
     //todo
     (unit.id, EntityAction(Some(MoveAction(reg.center, closest, break)),None, None, None))
   }
+
+  var paths:Set[Seq[(Int,Int)]] = Set()
 }

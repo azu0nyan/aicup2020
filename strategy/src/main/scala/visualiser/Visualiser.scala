@@ -1,6 +1,8 @@
 package visualiser
 
 import model.{AttackAction, AutoAttack, BuildAction, EntityAction, MoveAction, Vec2Float, Vec2Int}
+
+import java.awt.Color
 //import strategy.{BattleLogic, toVec2Int}
 import strategy._
 
@@ -88,7 +90,7 @@ object Visualiser {
                 }
                 attackAction.foreach {
                   case AttackAction(id, auto) =>
-                    id.flatMap(i => gi.enemyEntities.find(_.id == i)).foreach { enemy =>
+                    id.flatMap(i => gi.pw.entities.find(_.id == i)).foreach { enemy =>
                       DrawingUtils.drawLine(myEntity.position.toVec2Float + Vec2Float(.5f, .5f), enemy.position.toVec2Float + Vec2Float(.5f, .5f), g,
                         new awt.Color(255, 0, 0))
                     }
@@ -109,6 +111,17 @@ object Visualiser {
 
     pfDetails.toggle()
 
+    val paths = Drawing.addDrawer(g => {
+      if (gameInfo != null) {
+       for(p <- gameInfo.paths){
+         for(Seq(s,f) <- p.sliding(2)){
+           DrawingUtils.drawLine(Vec2Float(s.x, s.y)+ Vec2Float(.5f, .5f), Vec2Float(f.x, f.y)+ Vec2Float(.5f, .5f), g, new Color(0, 0, 255, 127), 3)
+         }
+       }
+      }
+    })
+
+
 
     Drawing.addKeyBinding(KeyEvent.VK_ESCAPE, () => Drawing.stopDrawing())
     Drawing.addKeyBinding(KeyEvent.VK_1, () => danger.toggle())
@@ -116,6 +129,7 @@ object Visualiser {
     Drawing.addKeyBinding(KeyEvent.VK_3, () => pf.toggle())
     Drawing.addKeyBinding(KeyEvent.VK_4, () => pfDetails.toggle())
     Drawing.addKeyBinding(KeyEvent.VK_5, () => actions.toggle())
+    Drawing.addKeyBinding(KeyEvent.VK_6, () => paths.toggle())
   }
 
 

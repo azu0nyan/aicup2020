@@ -20,13 +20,16 @@ class WorldStateDrawer( gi:() => GameInfo) extends DrawableUpdatable {
   val textColor = new Color(2,2,5)
 
   def draw(e:Entity, color: Color)(implicit g:Graphics2D) : Unit = {
+    val healthPercentage =  ((e.health) / e.entityType.maxHealth.toFloat)
 
     //layer1
     e.entityType match {
       case WALL | HOUSE | BUILDER_BASE | MELEE_BASE | RANGED_BASE | TURRET=>
         DrawingUtils.drawRect(e.position.toVec2Float, e.entityType.size, e.entityType.size, g, color, true)
+        DrawingUtils.drawRect(e.position.toVec2Float + Vec2Float(0, healthPercentage) * e.entityType.size,
+          e.entityType.size, e.entityType.size *(1f - healthPercentage) , g, color.darker(), true)
       case RESOURCE =>
-        val offset = ((e.entityType.maxHealth - e.health) / e.entityType.maxHealth.toFloat) / 2f
+        val offset = (1f - healthPercentage) / 2f
         DrawingUtils.drawRect(e.position.toVec2Float + Vec2Float(offset, offset), 1f - 2* offset, 1f - 2* offset, g, color, true)
       case BUILDER_UNIT =>
         DrawingUtils.drawCircle(e.position.toVec2Float + Vec2Float(.5f, .5f), .4f, g, color, true)

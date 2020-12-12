@@ -31,18 +31,20 @@ object MiningLogic extends StrategyPart {
         case _ =>
       }
     //go to near resource if possible
-    g.nonReservedWorkers
-      .foreach { worker =>
-        g.findClosestReachable(worker.position.x, worker.position.y, x =>     g.minableResource.contains(x), shortMineDistance, avoidUnits = true)
-          .foreach {
-            case (resource, Seq()) =>
-              res += g.mine(worker, resource)
-            case (resource, x) =>
-              res += g.move(worker, x.head)
-              g.minableResource -= resource
-          }
-      }
-
+    for(i <- 1 to shortMineDistance) {
+      g.nonReservedWorkers//.filter(w => i >= g.regionsSize || g.region(w.position).resources9 > 0)
+        .foreach { worker =>
+          g.findClosestReachable(worker.position.x, worker.position.y, x => g.minableResource.contains(x), i, avoidUnits = true)
+            .foreach {
+              case (resource, Seq()) =>
+                res += g.mine(worker, resource)
+              case (resource, x) =>
+                g.paths += x
+                res += g.move(worker, x.head)
+                g.minableResource -= resource
+            }
+        }
+    }
     //go to near if no danger
     g.nonReservedWorkers.filter(w => g.region(w.position).danger9 <= maxDangerToStay)
       .foreach { worker =>
@@ -52,13 +54,14 @@ object MiningLogic extends StrategyPart {
             case (resource, Seq()) =>
               res += g.mine(worker, resource)
             case (resource, x) =>
+              g.paths += x
               res += g.move(worker, x.head)
               g.minableResource -= resource
           }
       }
 
     val mineRegions: Seq[RegionInfo] = g.regions.flatten
-      .filter(r => r.danger9 <= maxDangerToStay && r.resources >= 0 && r.resources >= r.my(BUILDER_UNIT).size).sortBy(-_.resources)
+      .filter(r => r.danger9 <= maxDangerToStay && r.resources.size >= 0 && r.resources.size >= r.my(BUILDER_UNIT).size).sortBy(-_.resources.size)
 
     g.nonReservedWorkers.foreach { w =>
       val reg = g.region(w.position)

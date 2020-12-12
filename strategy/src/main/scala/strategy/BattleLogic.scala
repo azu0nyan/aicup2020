@@ -32,11 +32,12 @@ object BattleLogic extends StrategyPart {
                   )(implicit g: GameInfo) {
 
 
+
     def center: Vec2Int = Vec2Int(min.x, min.y) + Vec2Int(g.regionsSize / 2, g.regionsSize / 2)
 
     val my_ : mutable.Map[EntityType, Seq[Entity]] = mutable.Map()
     val enemy_ : mutable.Map[EntityType, Seq[Entity]] = mutable.Map()
-    var resources: Int = 0
+    var resources: mutable.Set[Entity] = mutable.Set()
 
     def my(e: EntityType): Seq[Entity] = my_.getOrElse(e, Seq())
 
@@ -55,7 +56,7 @@ object BattleLogic extends StrategyPart {
     def neighbours9: Seq[RegionInfo] = neighbours9Pos(id._1, id._2, g.regionInSide, g.regionInSide).map { case (x, y) => g.regions(x)(y) }
 
 
-    def freeCells: Int = g.regionsSize * g.regionsSize - resources
+    def freeCells: Int = g.regionsSize * g.regionsSize - resources.size
 
 
     lazy val power: Int =
@@ -83,6 +84,8 @@ object BattleLogic extends StrategyPart {
     lazy val defence9: Int = (this +: neighbours9).map(_.defenceValue).sum
     lazy val danger9: Int = (this +: neighbours9).map(_.danger).sum
     lazy val power9: Int = (this +: neighbours9).map(_.power).sum
+
+    lazy val resources9: Int = (this +: neighbours9).map(_.resources.size).sum
 
     lazy val entities: Seq[Entity] = my_.values.flatten ++ enemy_.values.flatten toSeq
 

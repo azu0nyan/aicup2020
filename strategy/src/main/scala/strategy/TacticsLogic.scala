@@ -79,6 +79,7 @@ object TacticsLogic extends StrategyPart {
       g.findClosestReachable(r.position.x, r.position.y, filter, maxRange).flatMap{
         case (_, Seq()) => None
         case (entity, path) =>
+          g.paths += path
           val (i, a) = g.move(r, path.head)
           Some((i, a, entity))
       }
@@ -90,14 +91,18 @@ object TacticsLogic extends StrategyPart {
     def gotToClosestFriend(r: Entity, maxRange: Int, types: Seq[EntityType]) =
       g.findClosestReachable(r.position.x, r.position.y, x => x != r && !x.isEnemy && types.contains(x.entityType), maxRange)
         .filter(x => x._1.position.distanceTo(r.position) != 1).map { //we already close to closest
-        case (entity, path) => g.move(r, path.head)
+        case (entity, path) =>
+          g.paths += path
+          g.move(r, path.head)
       }
 
     def goToBestPower(r: Entity): Option[(Int, EntityAction)] =
       cellsInRangeV(r.position, 1, g.mapSize)
         .filter(x => g.canMoveToNextTurn(r.position.toProd, x)).maxByOption({ case (x, y) => g.powerMap(x)(y) })
         .filterNot(x => x == r.position.toProd)
-        .map { case (x, y) => g.move(r, Vec2Int(x, y)) }
+        .map { case (x, y) =>
+          g.move(r, Vec2Int(x, y))
+        }
 
     def goToLeastDamageIn5(r: Entity): Option[(Int, EntityAction)] =
       cellsInRangeV(r.position, 1, g.mapSize)

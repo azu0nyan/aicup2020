@@ -52,24 +52,32 @@ class MyStrategy {
     totalTime += t
     println(f"Tick ${playerView.currentTick} ended ${t} ms. total time $totalTime avg time ${totalTime.toDouble / (playerView.currentTick + 1)}%.1f")
 
-    Visualiser.gameInfo = gameInfo
-    Visualiser.lastActions = res
+//    Visualiser.gameInfo = gameInfo
+//    Visualiser.lastActions = res
 
     model.Action(res)
   }
 
 
-  val showVisualiser = false
+  val showVisualiser = true
   var visualiserShown = false
   var showVisualiserFollowCamera = false
 //  var debugLastAc
 
+  var lastVisaliserTick = 0
   def debugUpdate(playerView: model.PlayerView, debugInterface: DebugInterface) {
     debugInterface.send(model.DebugCommand.Clear())
 
-    if (playerView.currentTick == 0 && showVisualiser) {
+    if (playerView.currentTick == 0 && showVisualiser && !visualiserShown) {
       Visualiser.initDebugDrawing()
       visualiserShown = true
+    }
+
+    if(playerView.currentTick > 0 && lastVisaliserTick != playerView.currentTick){
+      val gi = new strategy.GameInfo(playerView)
+      val acts = MacroStrategy.getActions(gi)
+      Visualiser.gameInfo = gi
+      Visualiser.lastActions = acts
     }
 
     if (showVisualiser && gameInfo != null) {

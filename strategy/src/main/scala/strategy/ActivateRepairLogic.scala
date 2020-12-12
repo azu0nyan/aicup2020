@@ -24,7 +24,9 @@ object ActivateRepairLogic extends StrategyPart {
       workers.flatMap { w =>
         g.findClosestReachable(w.position.x, w.position.y, e => e == b, maxRepairDistance, avoidUnits = true).map {
           case (_, Seq()) => g.repair(w, b)
-          case (_, x) => g.move(w, x.head)
+          case (_, x) =>
+            g.paths += x  //debug
+            g.move(w, x.head)
         }
 
 
