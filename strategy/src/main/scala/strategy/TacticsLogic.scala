@@ -76,10 +76,11 @@ object TacticsLogic extends StrategyPart {
 
 
     def gotToClosest(r: Entity, maxRange: Int, filter: Entity => Boolean): Option[(Int, EntityAction, Entity)] =
-      g.findClosestReachable(r.position.x, r.position.y, filter, maxRange).map {
+      g.findClosestReachable(r.position.x, r.position.y, filter, maxRange).flatMap{
+        case (_, Seq()) => None
         case (entity, path) =>
           val (i, a) = g.move(r, path.head)
-          (i, a, entity)
+          Some((i, a, entity))
       }
 
     def gotToClosestEnemy(r: Entity, maxRange: Int, types: Seq[EntityType]): Option[(Int, EntityAction, Entity)] =
