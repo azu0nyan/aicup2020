@@ -11,8 +11,9 @@ object MacroStrategy extends StrategyPart {
     res = combineOnePr(res, TacticsLogic.getActions)
     res = combineOnePr(res, ActivateRepairLogic.getActions)
     res = combineOnePr(res, MinersAvoidDamageLogic.getActions)
-    res = combineOnePr(res, ProductionLogic.getActions)
+    res = combineOnePr(res, BuildingLogic.getActions)
     res = combineOnePr(res, MiningLogic.getActions)
+    res = combineOnePr(res, ProductionLogic.getActions)
     res = combineOnePr(res, BattleLogic.getActions)
     res
   }

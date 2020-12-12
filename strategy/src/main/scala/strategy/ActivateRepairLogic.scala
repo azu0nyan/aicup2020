@@ -1,6 +1,7 @@
 package strategy
 
-import model.{EntityAction, MoveAction, RepairAction}
+import model.EntityType.BUILDER_UNIT
+import model.{Entity, EntityAction, MoveAction, RepairAction}
 
 object ActivateRepairLogic extends StrategyPart {
 
@@ -10,15 +11,24 @@ object ActivateRepairLogic extends StrategyPart {
 
   override def getActions(implicit g: GameInfo): ActionMap = {
     g.needRepairBUildings.flatMap { b =>
-      val workersClose = g.nonReservedWorkers.filter(w => w.position.distanceTo(b.position) < maxRepairDistance)
+//      val workersClose = g.nonReservedWorkers.filter(w => w.position.distanceTo(b.position) < maxRepairDistance)
+      val workersClose = g.findNClosestReachableToBuilding(b.position.x, b.position.y, b.entityType.size, maxWorkerPerHouse,
+        e => !e.isEnemy && e.entityType == BUILDER_UNIT && g.nonReservedWorkers.contains(e),        maxRepairDistance, true)
+//      println(workersClose)
+
+        g.nonReservedWorkers.filter(w => w.position.distanceTo(b.position) < maxRepairDistance)
       val borderCells = rectNeighbours(b.position.x, b.position.y, b.entityType.size, g.mapSize, g.mapSize)
         .filter(c => g.entitiesMap(c.x)(c.y).isEmpty || isUnit(g.entitiesMap(c.x)(c.y).get.entityType))
 
       val maxWorkers = math.min(borderCells.size, maxWorkerPerHouse)
 
+      val distance:Entity => Int = e => distanceFromSquare(b.position.toProd, b.entityType.size, e.position.toProd)
+
       val workers =
-        (if (workersClose.nonEmpty) workersClose.toSeq.sortBy(_.position.distanceTo(b.position)).take(maxWorkers)
-        else g.nonReservedWorkers.toSeq.sortBy(_.position.distanceTo(b.position)).take(maxWorkers))
+        if (workersClose.nonEmpty) workersClose.toSeq.sortBy(distance).take(maxWorkers)
+        else g.nonReservedWorkers.toSeq.sortBy(distance).take(maxWorkers)
+
+
 
 
       workers.flatMap { w =>

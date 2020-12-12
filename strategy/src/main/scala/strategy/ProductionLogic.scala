@@ -3,6 +3,7 @@ package strategy
 import model.EntityType._
 import model._
 
+import scala.collection.immutable.{AbstractSeq, LinearSeq}
 import scala.collection.mutable
 
 object ProductionLogic extends StrategyPart {
@@ -34,16 +35,6 @@ object ProductionLogic extends StrategyPart {
     Composition(75, 40, 200),
   )
 
-  def isHouseRequired(currentPop: Int, popMax: Int): Boolean = {
-    if (popMax < 15) true
-    else if (popMax == 15) currentPop >= 14
-    else if (popMax == 20) currentPop >= 18
-    else if (popMax == 25) currentPop >= 23
-    else if (popMax == 30) currentPop >= 26
-    else if (popMax == 35) currentPop >= 29
-    else popMax <= currentPop + 10
-
-  }
 
 
   def productionQueueForRecommendedComposition(implicit gameInfo: GameInfo): Seq[EntityType] = {
@@ -74,13 +65,12 @@ object ProductionLogic extends StrategyPart {
   }
 
   def productionQueueMatchStrongest(implicit gameInfo: GameInfo): Seq[EntityType] = {
-    val powerToMax = gameInfo.playerPowers.values.max -  gameInfo.myPower
-    if(powerToMax >= 15) Seq(RANGED_UNIT, MELEE_UNIT)
-    else if(powerToMax >= 10) Seq(MELEE_UNIT, RANGED_UNIT)
-    else if(powerToMax >= 5) Seq(MELEE_UNIT)
+    val powerToMax = gameInfo.playerPowers.values.max - gameInfo.myPower
+    if (powerToMax >= 15) Seq(RANGED_UNIT, MELEE_UNIT)
+    else if (powerToMax >= 10) Seq(MELEE_UNIT, RANGED_UNIT)
+    else if (powerToMax >= 5) Seq(MELEE_UNIT)
     else Seq()
   }
-
 
 
   //  val minWorkers: Int = 5
@@ -96,26 +86,93 @@ object ProductionLogic extends StrategyPart {
     g.populationFree >= u.populationUse && g.myMinerals >= g.unitCost(u) && g.my(unitToBuilderBase(u)).exists(b => b.active && !g.reservedBuildings.contains(b))
 
 
-  def findFreeCellAround(e: Entity)(implicit g: GameInfo): Option[(Int, Int)] = rectNeighbours(e.position.x, e.position.y, e.entityType.size, g.mapSize, g.mapSize)
-    .find(g.cellToEntity(_).isEmpty)
+  def possibleSpawnPlaces(around: Entity)(implicit g: GameInfo): Seq[(Int, Int)] =
+    rectNeighbours(around.position.x, around.position.y, around.entityType.size, g.mapSize, g.mapSize)
+      .filter { case (x, y) => g.emptyNextTurn(x, y) }
 
+  //  def findFreeCellAround(e: Entity)(implicit g: GameInfo): Option[(Int, Int)] =
+  //    rectNeighbours(e.position.x, e.position.y, e.entityType.size, g.mapSize, g.mapSize)
+  //    .find(g.cellToEntity(_).isEmpty)
+
+  def maxResourceDistanceMatter = 30
+  def findCellToSpawnBuilders(spawner: Entity)(implicit g: GameInfo): Option[(Int, Int)] = {
+    possibleSpawnPlaces(spawner) match {
+      case Seq() => None
+      case cells =>
+        g.resources.filter(r => r.position.distanceTo(spawner.position) < maxResourceDistanceMatter && !g.minableResource.contains(r)) match {
+          case Seq() => Some(cells.maxBy { case (x, y) => x + y })
+          case resources =>
+            Some(cells.map(c => (c, resources.map(r => distance(c, r.position.toProd)).min)).minBy(_._2)._1)
+        }
+    }
+  }
+
+  def findCellToSpawnMelee(spawner: Entity)(implicit g: GameInfo): Option[(Int, Int)] = {
+    possibleSpawnPlaces(spawner) match {
+      case Seq() => None
+      case cells =>
+        g.enemyEntities.filter(_.entityType == RANGED_UNIT)
+          .minByOption(e => distanceFromSquare(spawner.position.toProd, spawner.entityType.size, e.position.toProd))
+          .orElse(g.enemyEntities.filter(_.entityType == MELEE_UNIT)
+            .minByOption(e => distanceFromSquare(spawner.position.toProd, spawner.entityType.size, e.position.toProd))) match {
+          case Some(enemy) =>
+            Some(cells.minBy(c => distance(c, enemy.position.toProd)))
+          case None => Some(cells.maxBy { case (x, y) => x + y })
+        }
+    }
+  }
+
+  def findCellToSpawnRanged(spawner: Entity)(implicit g: GameInfo): Option[(Int, Int)] = {
+    possibleSpawnPlaces(spawner) match {
+      case Seq() => None
+      case cells =>
+        val reg = g.region(spawner.position)
+        val inDanger = reg.danger9 >= 5
+        if (inDanger) {
+          val meleeClose = reg.enemyN9(Seq(MELEE_UNIT))
+          val rangedClose = reg.enemyN9(Seq(MELEE_UNIT))
+
+          //          val noDangerCells = cells.filter(c => g.dangerMap(c.x)(c.y) < 5)
+          //spawn in range but 2 cells from melee
+
+          val closestMelee: (Int, Int) => Int = (x, y) => meleeClose.map(m => distance((x, y), m.position.toProd)).min
+
+          val duelCell: Seq[(Int, Int)] => Option[(Int, Int)] = s => s.filter(c => g.dangerMap(c.x)(c.y) == 5 &&
+            rectNeighbours(c.x, c.y, 2, g.mapSize, g.mapSize).forall { case (x, y) => g.dangerMap(x)(y) <= 5 } &&
+            closestMelee(c.x, c.y) > 2)
+            .maxByOption(c => meleeClose.map(m => distance(c, m.position.toProd)).min)
+
+          val safeFightMeleeCell: Seq[(Int, Int)] => Option[(Int, Int)] = s => s.filter(c => g.dangerMap(c.x)(c.y) < 5 && {
+            val cl = closestMelee(c.x, c.y)
+            cl >= 3 && cl <= 5
+          }).maxByOption(c => closestMelee(c.x, c.y))
+
+          val safestCell: Seq[(Int, Int)] => Option[(Int, Int)] = s => s.groupBy(c => g.dangerMap(c.x)(c.y)).toSeq.minBy(_._1)._2
+            .minByOption { case (x, y) => rectNeighbours(x, y, 1, g.mapSize, g.mapSize).map { case (xx, yy) => g.dangerMap(xx)(yy) }.sum }
+
+          safeFightMeleeCell(cells).orElse(
+            duelCell(cells)).orElse(
+            safestCell(cells))
+            .orElse(cells.minByOption { case (x, y) => x + y })
+
+
+        } else Some(cells.maxBy { case (x, y) => x + y })
+    }
+  }
 
   def produce(unitType: EntityType)(implicit g: GameInfo): Option[(Int, EntityAction)] =
     g.my(unitToBuilderBase(unitType)).find(b => b.active && !g.reservedBuildings.contains(b)).flatMap { building =>
-      findFreeCellAround(building).map { producePosition =>
-        println(s"Producing $unitType at $producePosition")
-        g.populationFree -= unitType.populationUse //Update resource status
-        g.myMinerals -= g.unitCost(unitType)
-        g.reservedBuildings += building
-        (building.id,
-          EntityAction(
-            None,
-            Some(BuildAction(unitType, producePosition)),
-            None,
-            None
-          )
-        )
+      val cell:Option[(Int, Int)] = unitType match {
+        case BUILDER_UNIT => findCellToSpawnBuilders(building)
+        case MELEE_UNIT => findCellToSpawnMelee(building)
+        case RANGED_UNIT =>findCellToSpawnRanged(building)
+        case _ => None
       }
+      cell.map(x => g.spawn(building, unitType, x))
+
+
+
+
     }
 
 
@@ -124,19 +181,8 @@ object ProductionLogic extends StrategyPart {
     val res: mutable.Map[Int, EntityAction] = mutable.Map[Int, EntityAction]()
 
 
-    val housesReq = isHouseRequired(g.populationUse, g.populationMaxWithNonactive)
-    if (housesReq && g.myMinerals >= HOUSE.initialCost) {
-      println(s"Trying to build house")
-      BuildingLogic.build(HOUSE) match {
-        case Some(command) =>
-          g.myMinerals -= HOUSE.buildScore
-          res += (command._1.id -> command._2)
-        case None =>
-      }
-    }
-
     val prodQueue = productionQueueMatchStrongest ++ productionQueueForRecommendedComposition
-    println(s"${g.populationUse} / ${g.populationMax} ${prodQueue}")
+//    println(s"${g.populationUse} / ${g.populationMax} ${prodQueue}")
     prodQueue.foreach { e =>
       if (canProduce(e)) produce(e).foreach(res += _)
     }

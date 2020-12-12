@@ -7,7 +7,7 @@ trait VecOps {
 
     def +(ot: Vec2Int): Vec2Int = Vec2Int(x.x + ot.x, x.y + ot.y)
 
-    def distanceTo(ot: Vec2Int): Int = math.abs(x.x - ot.x) + math.abs(x.y - ot.y)
+    def distanceTo(ot: Vec2Int): Int =  math.abs(x.x - ot.x) + math.abs(x.y - ot.y)
 
     def toVec2Float:Vec2Float = Vec2Float(x.x, x.y)
   }

@@ -118,7 +118,7 @@ object BattleLogic extends StrategyPart {
 
 
     val wanderAround = if(needDefendWeLose.isEmpty && needDefendWeWin.isEmpty && attackTargets.isEmpty){
-      g.allRegions.filter(r => distance(r.id, (0, 0) ) == 5).map(r => (r, wanderAroundPrice))
+      g.allRegions.filter(r => distance(r.id, (0, 0) ) == 6).map(r => (r, wanderAroundPrice))
     } else Seq()
 
 

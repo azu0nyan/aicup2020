@@ -39,9 +39,24 @@ object MiningLogic extends StrategyPart {
               case (resource, Seq()) =>
                 res += g.mine(worker, resource)
               case (resource, x) =>
-                g.paths += x
-                res += g.move(worker, x.head)
-                g.minableResource -= resource
+                val sp = g.shortestPath(worker.position.toProd, x.last)
+//                if(!sp.contains(x)) {
+//                  println("-----")
+//                  println(worker.position.toProd, x.last)
+//                  println(x)
+//                  println(sp)
+//                }
+                sp match {
+                  case Some(newPath) =>
+                    g.paths += newPath
+                    res += g.move(worker, newPath.head)
+                    g.minableResource -= resource
+                  case None =>
+                    g.paths += x
+                    res += g.move(worker, x.head)
+                    g.minableResource -= resource
+                }
+
             }
         }
     }

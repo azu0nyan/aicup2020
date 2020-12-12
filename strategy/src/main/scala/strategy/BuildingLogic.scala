@@ -3,7 +3,9 @@ package strategy
 import model.EntityType._
 import model._
 
-object BuildingLogic {
+import scala.collection.mutable
+
+object BuildingLogic extends StrategyPart {
 
 
   val baseArea = 30
@@ -14,29 +16,86 @@ object BuildingLogic {
       .flatMap {
         case (x, y) if x == y => Seq((x, x))
         case (x, y) => Seq((x, y), (y, x))
-      } ++      ((5 until baseArea by 4)).flatMap(x => ((5 until baseArea by 4)).map(y => (x, y)))
-      .filter(_ != (3, 0))
+      }.filter(_ != (3, 0)) ++ ((5 until baseArea by 4)).flatMap(x => ((5 until baseArea by 4)).map(y => (x, y)))
+
+
+  def isHouseRequired(currentPop: Int, popMax: Int): Boolean = {
+    if (popMax < 15) true
+    else if (popMax == 15) currentPop >= 14
+    else if (popMax == 20) currentPop >= 18
+    else if (popMax == 25) currentPop >= 23
+    else if (popMax == 30) currentPop >= 26
+    else if (popMax == 35) currentPop >= 29
+    else popMax <= currentPop + 10
+
+  }
 
 
   def canBuildAt(pos: (Int, Int), size: Int)(implicit g: GameInfo): Boolean =
-    (0 until size).flatMap(x => (0 until (size)).map(y => !g.cantBuildArea(pos._1 + x)( pos._2 + y))).forall(x => x)
+    (0 until size).flatMap(x => (0 until (size)).map(y => !g.cantBuildArea(pos._1 + x)(pos._2 + y))).forall(x => x)
 
-  def findCurrentTurnBuildingSpotForHouse(size: Int)(implicit g: GameInfo): Option[(Int, Int, Entity)] =
-    houseSpots.to(LazyList).filter(pos => canBuildAt(pos, size)).flatMap { buildAt =>
-      g.nonReservedWorkers.find(b => rectNeighbours(b.position.x, b.position.y, b.entityType.size, g.mapSize, g.mapSize).exists(n => sqContains(buildAt.x, buildAt.y, size, n.x, n.y)))
-        .map { e => (buildAt._1, buildAt._2, e) }
-    }.headOption
+  def currentTurnSpot(size: Int, spots: Seq[(Int, Int)])(implicit g: GameInfo): Option[((Int, Int), Seq[Entity])] =
+    spots.filter(s => canBuildAt(s, size))
+      .map(s => (s, g.nonReservedWorkers.toSeq.sortBy(w => distanceFromSquare(s, size, w.position.toProd)).take(ActivateRepairLogic.maxWorkerPerHouse)))
+      .filter(_._2.nonEmpty).sortBy { case (pos, ws) => ws.map(w => distanceFromSquare(pos, size, w.position.toProd)).sum }.headOption
 
 
-  def build(u: EntityType)(implicit g: GameInfo): Option[(Entity, EntityAction)] = findCurrentTurnBuildingSpotForHouse(u.size) map {
+  /* def findCurrentTurnBuildingSpotForHouse(size: Int)(implicit g: GameInfo): Option[(Int, Int, Entity)] =
+     houseSpots.to(LazyList).filter(pos => canBuildAt(pos, size)).flatMap { buildAt =>
+       g.nonReservedWorkers.find(b => rectNeighbours(b.position.x, b.position.y, b.entityType.size, g.mapSize, g.mapSize).exists(n => sqContains(buildAt.x, buildAt.y, size, n.x, n.y)))
+         .map { e => (buildAt._1, buildAt._2, e) }
+     }.headOption*/
+
+  def findBestBuildingSpotFor(size: Int, spots: Seq[(Int, Int)])(implicit g: GameInfo): Option[((Int, Int), Seq[Entity])] =
+    spots.filter(s => canBuildAt(s, size))
+      .map(s => (s, g.nonReservedWorkers.toSeq
+        .sortBy(w => distanceFromSquare(s, size, w.position.toProd))
+        .take(ActivateRepairLogic.maxWorkerPerHouse))
+      ).minByOption { case (s, workers) => workers.map(w => distanceFromSquare(s, size, w.position.toProd)).sum }
+
+
+  def build(u: EntityType)(implicit g: GameInfo): Option[(Int, EntityAction)] =
+    currentTurnSpot(u.size, houseSpots).orElse(findBestBuildingSpotFor(u.size, houseSpots)).flatMap {
+      case (pos, Seq()) => None
+      case (pos, ws) => if (distanceFromSquare(pos, u.size, ws.head.position.toProd) == 0) {
+        Some(g.build(pos, ws.head, u))
+      } else {
+        Some(g.move(ws.head, Vec2Int(pos.x, pos.y)))
+      }
+    }
+
+
+  /*findCurrentTurnBuildingSpotForHouse(u.size) map {
     case (x, y, e) =>
       println(s"Found spot for $u at $x $y with builder $e")
       g.reservedUnits += e
+      g.myMinerals -= HOUSE.buildScore
+      rectArea(x, y, u.size, u.size, g.mapSize, g.mapSize).foreach(c => g.reservedForMovementCells += c)
       (e, EntityAction(None, Some(BuildAction(u, (x, y))), None, None))
-  }
+  }*/
   /* orElse {
      NOne
     }*/
+
+
+  override def getActions(implicit g: GameInfo): ActionMap = {
+
+    val res: mutable.Map[Int, EntityAction] = mutable.Map[Int, EntityAction]()
+
+
+    val housesReq = isHouseRequired(g.populationUse, g.populationMaxWithNonactive)
+    if (housesReq && g.myMinerals >= HOUSE.initialCost) {
+      println(s"Trying to build house")
+      BuildingLogic.build(HOUSE) match {
+        case Some(command) =>
+          res += command
+        case None =>
+      }
+    }
+
+
+    res.toMap
+  }
 
 
 }

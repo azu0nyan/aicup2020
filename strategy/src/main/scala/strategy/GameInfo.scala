@@ -1,9 +1,9 @@
 package strategy
 
 import com.sun.tools.javac.api.JavacTaskPool.Worker
-import helpers.ArrayGrid
+import helpers.{ArrayGrid, BinHeap}
 import model.EntityType._
-import model.{AttackAction, AttackProperties, Entity, EntityAction, EntityProperties, EntityType, MoveAction, Player, PlayerView, RepairAction, Vec2Int}
+import model.{AttackAction, AttackProperties, BuildAction, Entity, EntityAction, EntityProperties, EntityType, MoveAction, Player, PlayerView, RepairAction, Vec2Int}
 import strategy.BattleLogic.RegionInfo
 
 import scala.annotation.tailrec
@@ -168,10 +168,6 @@ class GameInfo(val pw: PlayerView) {
 
   /** maxDistance >= 1 */
   def findClosestReachable(x: Int, y: Int, filter: Entity => Boolean, maxDistance: Int, avoidUnits: Boolean = false): Option[(Entity, Seq[(Int, Int)])] = {
-    def potentiallyWalkable(xy: (Int, Int)): Boolean =
-      entitiesMap(xy).isEmpty || (!avoidUnits && isUnit(entitiesMap(xy).get.entityType))
-
-
     val visited: mutable.Set[(Int, Int)] = mutable.Set()
     val toVisit: mutable.Queue[(Int, Int)] = mutable.Queue()
     val cameFrom: mutable.Map[(Int, Int), (Int, Int)] = mutable.Map()
@@ -202,7 +198,7 @@ class GameInfo(val pw: PlayerView) {
       } else {
         rectNeighbours(curx, cury, 1, mapSize, mapSize).foreach {
           neigh =>
-            if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh) && !visited.contains(neigh)) {
+            if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh, avoidUnits) && !visited.contains(neigh)) {
               cameFrom(neigh) = (curx, cury)
               visited += neigh
               toVisit += neigh
@@ -213,6 +209,105 @@ class GameInfo(val pw: PlayerView) {
     return None
 
   }
+  def potentiallyWalkable(xy: (Int, Int), avoidUnits: Boolean = false): Boolean =
+    entitiesMap(xy).isEmpty || (!avoidUnits && isUnit(entitiesMap(xy).get.entityType))
+
+  def shortestPath(
+                    from: (Int, Int), to: (Int, Int), avoidUnits: Boolean = true
+                  ): Option[Seq[(Int, Int)]] = {
+
+    val nodeHeuristic: (Int, Int) => Int = (x, y) => distance((x, y), to)
+
+    val knownBest: mutable.Map[(Int, Int), Int] = mutable.Map()
+    knownBest(from) = 0
+    // For node n, quenedBestGuesses[n] := knownBest[n] + h(n). quenedBestGuesses[n] represents our current best guess as to
+    // how short a path from start to finish can be if it goes through n
+    val quenedBestGuesses: mutable.Map[(Int, Int), Int] = mutable.Map()
+    quenedBestGuesses(from) = nodeHeuristic(from.x, from.y)
+
+    val openQueue: BinHeap[(Int, Int)] = new BinHeap[(Int, Int)]()(Ordering.by((n: (Int, Int)) => quenedBestGuesses(n)))
+
+    val cameFrom: mutable.Map[(Int, Int), (Int, Int)] = mutable.Map()
+    // val cameBy: mutable.Map[(Int, Int), EdgeData] = mutable.Map()
+    def reconstructPath(): Seq[(Int, Int)] = {
+      val path: mutable.Buffer[(Int, Int)] = mutable.Buffer()
+      var currentNode = to
+      while (currentNode != from) {
+        path += currentNode
+        currentNode = cameFrom(currentNode)
+      }
+      path.toSeq.reverse
+    }
+    //
+
+    openQueue.add(from)
+    while (openQueue.nonEmpty) {
+      val current = openQueue.poll()
+      if (current == to) {
+        return Some(reconstructPath())
+      } else {
+        val curNodeScore = knownBest(current)
+        rectNeighbours(current.x, current.y, 1, mapSize, mapSize).filter(c => potentiallyWalkable(c, avoidUnits)).foreach { neigh =>
+          val costWithCurrentEdge = curNodeScore + 1 // + cost
+          // we encountered `toNode` first time || found better way, `>` filters paths with same cost
+          if (!knownBest.contains(neigh) || knownBest(neigh) > costWithCurrentEdge) {
+            knownBest(neigh) = costWithCurrentEdge
+            quenedBestGuesses(neigh) = costWithCurrentEdge + nodeHeuristic(neigh.x, neigh.y)
+            cameFrom(neigh) = current
+            if (openQueue.contains(neigh)) openQueue.onOrderingChangedFor(neigh)
+            else openQueue.add(neigh)
+          }
+        }
+      }
+    }
+
+    return None
+
+  }
+
+
+  def findNClosestReachableToBuilding(x: Int, y: Int, size: Int, count:Int,  filter: Entity => Boolean, maxDistance: Int, avoidUnits: Boolean = false): Seq[Entity] = {
+    val visited: mutable.Set[(Int, Int)] = mutable.Set()
+    val toVisit: mutable.Queue[(Int, Int)] = mutable.Queue()
+    val cameFrom: mutable.Map[(Int, Int), (Int, Int)] = mutable.Map()
+    val res: mutable.Buffer[Entity] = mutable.Buffer()
+    toVisit += ((x, y))
+    visited += ((x, y))
+
+    //cant start path from inaccessible cell
+    val (canGo, cantGo) = rectNeighbours(x, y, size, mapSize, mapSize).partition(to => potentiallyWalkable(to, avoidUnits))
+    toVisit ++= canGo
+    cameFrom ++= canGo.map(c => c -> (x, y))
+    visited ++= canGo
+    visited ++= cantGo
+
+    cantGo.foreach(x => entitiesMap(x.x)(x.y).foreach(e => if(filter(e)) res += e))
+
+
+    while (toVisit.nonEmpty) {
+      val (curx, cury) = toVisit.dequeue()
+      val target = rectNeighbours(curx, cury, 1, mapSize, mapSize)
+        .flatMap { case (x, y) => entitiesMap(x, y) }
+        .filter(e => !res.contains(e) && filter(e))
+        .take(count - res.size)
+      res ++= target
+
+      if(res.size >= count) return res.toSeq
+
+      rectNeighbours(curx, cury, 1, mapSize, mapSize).foreach {
+        neigh =>
+          if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh, avoidUnits) && !visited.contains(neigh)) {
+            cameFrom(neigh) = (curx, cury)
+            visited += neigh
+            toVisit += neigh
+          }
+      }
+
+    }
+    return res.toSeq
+
+  }
+
 
   //  def myUnitsInArea(cx:Int, cy:Int, size:Int, types:Seq[EntityType]):Seq[Entity] = {
   //    val regions:Set[(Int, Int)] =
@@ -280,6 +375,9 @@ class GameInfo(val pw: PlayerView) {
   //      movingEntities.contains(entitiesMap(x, y).get)
   //  }
 
+  def emptyNextTurn(x: Int, y: Int): Boolean = !reservedForMovementCells.contains((x, y)) && {
+    g.entitiesMap(x)(y).isEmpty //|| !nextTurnPosition.get(g.entitiesMap(x)(y).get).contains((x, y))
+  }
 
   def attack(who: Entity, target: Entity)(implicit g: GameInfo): (Int, EntityAction) = {
     reservedUnits += who
@@ -311,11 +409,34 @@ class GameInfo(val pw: PlayerView) {
     (worker.id, EntityAction(None, None, Some(AttackAction(Some(resource.id), None)), None))
   }
 
-  def goToRegion(unit:Entity, reg:RegionInfo, closest:Boolean, break:Boolean) :(Int, EntityAction) = {
-    g.reservedUnits += unit
-    //todo
-    (unit.id, EntityAction(Some(MoveAction(reg.center, closest, break)),None, None, None))
+  def spawn(building: Entity, unitType: EntityType, producePosition: Vec2Int) = {
+    println(s"Producing $unitType at $producePosition")
+    g.populationFree -= unitType.populationUse //Update resource status
+    g.myMinerals -= g.unitCost(unitType)
+    g.reservedBuildings += building
+    (building.id,
+      EntityAction(
+        None,
+        Some(BuildAction(unitType, producePosition)),
+        None,
+        None
+      )
+    )
   }
 
-  var paths:Set[Seq[(Int,Int)]] = Set()
+  def build(pos: Vec2Int, builder: Entity, building: EntityType): (Int, EntityAction) = {
+    g.reservedUnits += builder
+    g.myMinerals -= building.buildScore
+    rectArea(pos.x, pos.y, building.size, building.size, g.mapSize, g.mapSize).foreach(c => g.reservedForMovementCells += c)
+    (builder.id, EntityAction(None, Some(BuildAction(building, (pos.x, pos.y))), None, None))
+  }
+
+
+  def goToRegion(unit: Entity, reg: RegionInfo, closest: Boolean, break: Boolean): (Int, EntityAction) = {
+    g.reservedUnits += unit
+    //todo
+    (unit.id, EntityAction(Some(MoveAction(reg.center, closest, break)), None, None, None))
+  }
+
+  var paths: Set[Seq[(Int, Int)]] = Set()
 }
