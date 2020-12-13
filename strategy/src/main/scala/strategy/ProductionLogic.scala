@@ -12,28 +12,40 @@ object ProductionLogic extends StrategyPart {
     def foodReq: Int = workers + melee + ranged
   }
 
+
+  val lastWorkerProductionTick = 850
+  val maxWorkersToResourcesRatio = 6
+  val maxWorkersWhenEnclosed = 50
+  val meleeToArchersRatio = 0.15
+
   val compositionFrames: Seq[Composition] = Seq(
     Composition(1, 1, 1),
     Composition(11, 1, 1),
     Composition(12, 1, 1),
     Composition(13, 1, 1),
     Composition(13, 2, 1),
-    Composition(13, 3, 2),
-    Composition(15, 3, 2),
-    Composition(15, 3, 2),
-    Composition(15, 4, 3),
-    Composition(20, 5, 5),
-    Composition(20, 5, 10),
-    Composition(25, 10, 20),
-    Composition(30, 10, 30),
-    Composition(40, 15, 40),
-    Composition(45, 20, 60),
-    Composition(50, 25, 70),
-    Composition(50, 25, 80),
-    Composition(50, 25, 90),
-    Composition(70, 35, 150),
-    Composition(75, 40, 200),
+    Composition(13, 2, 2),
+    Composition(15, 2, 2),
+    Composition(15, 2, 2),
+    Composition(15, 2, 3),
+    Composition(20, 2, 5),
+    Composition(22, 4, 10),
+    Composition(25, 4, 15),
+    Composition(30, 6, 20),
+    Composition(35, 6, 24),
+    Composition(40, 6, 26),
+    Composition(45, 6, 28),
+    Composition(46, 6, 32),
+    Composition(50, 6, 36),
+    Composition(55, 6, 40),
+    Composition(55, 6, 60),
+    Composition(55, 6, 80),
+    Composition(55, 6, 90),
+    Composition(75, 6, 150),
+    Composition(75, 6, 200),
   )
+
+
 
 
 
@@ -65,11 +77,12 @@ object ProductionLogic extends StrategyPart {
   }
 
   def productionQueueMatchStrongest(implicit gameInfo: GameInfo): Seq[EntityType] = {
-    val powerToMax = gameInfo.playerPowers.values.max - gameInfo.myPower
-    if (powerToMax >= 15) Seq(RANGED_UNIT, MELEE_UNIT)
-    else if (powerToMax >= 10) Seq(MELEE_UNIT, RANGED_UNIT)
-    else if (powerToMax >= 5) Seq(MELEE_UNIT)
+    val powerToMax = gameInfo.macroState.playerPowers.values.max - gameInfo.macroState.myPower
+    if (powerToMax >= 15) Seq(RANGED_UNIT)
+    else if (powerToMax >= 10) Seq( RANGED_UNIT)
+    else if (powerToMax >= 5) Seq(RANGED_UNIT)
     else Seq()
+    Seq()
   }
 
 
@@ -83,7 +96,8 @@ object ProductionLogic extends StrategyPart {
   //  def targetRanged(implicit g: GameInfo):Int = g.a
 
   def canProduce(u: EntityType)(implicit g: GameInfo): Boolean =
-    g.populationFree >= u.populationUse && g.myMinerals >= g.unitCost(u) && g.my(unitToBuilderBase(u)).exists(b => b.active && !g.reservedBuildings.contains(b))
+    g.populationFree >= u.populationUse && g.myMinerals >= g.unitCost(u) &&
+      g.my(unitToBuilderBase(u)).exists(b => b.active && !g.reservedBuildings.contains(b))
 
 
   def possibleSpawnPlaces(around: Entity)(implicit g: GameInfo): Seq[(Int, Int)] =
@@ -135,16 +149,17 @@ object ProductionLogic extends StrategyPart {
           //          val noDangerCells = cells.filter(c => g.dangerMap(c.x)(c.y) < 5)
           //spawn in range but 2 cells from melee
 
-          val closestMelee: (Int, Int) => Int = (x, y) => meleeClose.map(m => distance((x, y), m.position.toProd)).min
+          val closestMelee: (Int, Int) => Option[Int] = (x, y) => meleeClose.map(m => distance((x, y), m.position.toProd)).minOption
 
-          val duelCell: Seq[(Int, Int)] => Option[(Int, Int)] = s => s.filter(c => g.dangerMap(c.x)(c.y) == 5 &&
+          val duelCell: Seq[(Int, Int)] => Option[(Int, Int)] = s => if(meleeClose.isEmpty) None else {s.filter(c => g.dangerMap(c.x)(c.y) == 5 &&
             rectNeighbours(c.x, c.y, 2, g.mapSize, g.mapSize).forall { case (x, y) => g.dangerMap(x)(y) <= 5 } &&
-            closestMelee(c.x, c.y) > 2)
+            (closestMelee(c.x, c.y).isEmpty || closestMelee(c.x, c.y).get > 2))
             .maxByOption(c => meleeClose.map(m => distance(c, m.position.toProd)).min)
+          }
 
           val safeFightMeleeCell: Seq[(Int, Int)] => Option[(Int, Int)] = s => s.filter(c => g.dangerMap(c.x)(c.y) < 5 && {
             val cl = closestMelee(c.x, c.y)
-            cl >= 3 && cl <= 5
+            cl.nonEmpty && cl.get >= 3 && cl.get <= 5
           }).maxByOption(c => closestMelee(c.x, c.y))
 
           val safestCell: Seq[(Int, Int)] => Option[(Int, Int)] = s => s.groupBy(c => g.dangerMap(c.x)(c.y)).toSeq.minBy(_._1)._2
@@ -181,7 +196,22 @@ object ProductionLogic extends StrategyPart {
     val res: mutable.Map[Int, EntityAction] = mutable.Map[Int, EntityAction]()
 
 
-    val prodQueue = productionQueueMatchStrongest ++ productionQueueForRecommendedComposition
+    var prodQueue:Seq[EntityType] = Seq()//productionQueueMatchStrongest ++ productionQueueForRecommendedComposition
+
+    if(g.macroState.noPathToEnemy && g.myWorkers.size < maxWorkersWhenEnclosed && canProduce(BUILDER_UNIT)){
+      prodQueue = BUILDER_UNIT +: prodQueue
+    }
+
+    if(g.macroState.ourPowerAtBase * 1.2 < g.macroState.enemyPowerAtOurBase ) {
+      if (g.myMeleeUnits.size * meleeToArchersRatio < g.myRangedUnits.size * (1f - meleeToArchersRatio)) {
+        prodQueue = MELEE_UNIT +: prodQueue
+      } else {
+        prodQueue = RANGED_UNIT +: prodQueue
+      }
+    } else prodQueue =prodQueue ++  productionQueueForRecommendedComposition
+
+    if(g.resources.size < g.myWorkers.size * maxWorkersToResourcesRatio || g.pw.currentTick > lastWorkerProductionTick)  prodQueue = prodQueue.filter(_ != BUILDER_UNIT)
+      //    }
 //    println(s"${g.populationUse} / ${g.populationMax} ${prodQueue}")
     prodQueue.foreach { e =>
       if (canProduce(e)) produce(e).foreach(res += _)

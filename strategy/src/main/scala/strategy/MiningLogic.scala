@@ -4,13 +4,15 @@ import model.EntityType._
 import model._
 import strategy.BattleLogic.RegionInfo
 
+import scala.util.Random
+
 object MiningLogic extends StrategyPart {
 
-  val shortMineDistance = 7
+//  val shortMineDistance = 5
 
-  val mediumMineDistance = 15
+//  val mediumMineDistance = 15
 
-  val maxDangerToStay = 15
+  val maxDangerToStay = 10
 
   /* def closestMine(point: (Int, Int))(implicit g: GameInfo): Option[Entity] =
      g.minableResource.filter(e => g.region(e.position.toProd).danger9 <= 15)
@@ -31,21 +33,21 @@ object MiningLogic extends StrategyPart {
         case _ =>
       }
     //go to near resource if possible
-    for(i <- 1 to shortMineDistance) {
-      g.nonReservedWorkers//.filter(w => i >= g.regionsSize || g.region(w.position).resources9 > 0)
+    for (i <- Seq(1,2,3,5)) {
+      g.nonReservedWorkers.filter(w => i >= g.regionsSize || g.region(w.position).resources9 > 0)
         .foreach { worker =>
           g.findClosestReachable(worker.position.x, worker.position.y, x => g.minableResource.contains(x), i, avoidUnits = true)
             .foreach {
               case (resource, Seq()) =>
                 res += g.mine(worker, resource)
               case (resource, x) =>
-                val sp = g.shortestPath(worker.position.toProd, x.last)
-//                if(!sp.contains(x)) {
-//                  println("-----")
-//                  println(worker.position.toProd, x.last)
-//                  println(x)
-//                  println(sp)
-//                }
+                val sp = g.shortestPath(worker.position.toProd, x.last, avoidUnits = true, avoidBuildings = true)
+                //                if(!sp.contains(x)) {
+                //                  println("-----")
+                //                  println(worker.position.toProd, x.last)
+                //                  println(x)
+                //                  println(sp)
+                //                }
                 sp match {
                   case Some(newPath) =>
                     g.paths += newPath
@@ -61,7 +63,7 @@ object MiningLogic extends StrategyPart {
         }
     }
     //go to near if no danger
-    g.nonReservedWorkers.filter(w => g.region(w.position).danger9 <= maxDangerToStay)
+    /* g.nonReservedWorkers.filter(w => g.region(w.position).danger9 <= maxDangerToStay)
       .foreach { worker =>
         g.findClosestReachable(worker.position.x, worker.position.y, x =>
           g.minableResource.contains(x), mediumMineDistance, avoidUnits = true)
@@ -73,21 +75,26 @@ object MiningLogic extends StrategyPart {
               res += g.move(worker, x.head)
               g.minableResource -= resource
           }
-      }
+      }*/
 
     val mineRegions: Seq[RegionInfo] = g.regions.flatten
-      .filter(r => r.danger9 <= maxDangerToStay && r.resources.size >= 0 && r.resources.size >= r.my(BUILDER_UNIT).size).sortBy(-_.resources.size)
+      .filter(r => r.danger9 <= maxDangerToStay && r.resources.nonEmpty && r.resources.size * 2 >= r.my(BUILDER_UNIT).size)
+      .sortBy(-_.resources.size)
+      .sortBy(r => distance((0, 0), r.id))
 
-    g.nonReservedWorkers.foreach { w =>
-      val reg = g.region(w.position)
-      mineRegions.sortBy(r => distance(r.id, reg.id))
-      mineRegions.headOption.foreach{reg =>
+    if (mineRegions.nonEmpty) {
+      g.nonReservedWorkers.foreach { w =>
+//        val reg = g.region(w.position)
 
+        val candidats = mineRegions.take(10)
+        //      mineRegions.minByOption(r => distance(r.id, reg.id)).foreach{reg =>
+
+        val reg = candidats(new Random(w.id).nextInt(1000) % (candidats.size))
         res += g.goToRegion(w, reg, true, true)
 
       }
-
     }
+
 
     res
 

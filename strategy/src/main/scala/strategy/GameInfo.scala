@@ -26,7 +26,7 @@ object GameInfo {
 }
 
 
-class GameInfo(val pw: PlayerView) {
+class GameInfo(val pw: PlayerView, firstTick:Boolean) {
 
 
   val mapSize: Int = pw.mapSize
@@ -64,10 +64,7 @@ class GameInfo(val pw: PlayerView) {
 
   val myEntities: Seq[Entity] = entitiesByPlayer(me)
 
-  val playerPowers: Map[Player, Int] =
-    pw.players.map(p => (p, entitiesByPlayer(p).map(_.entityType.attack.map(_.damage).getOrElse(0)).sum)) toMap
 
-  val myPower: Int = playerPowers(me)
 
   def unitCost(e: EntityType): Int = e.initialCost + my(e).size
 
@@ -133,17 +130,18 @@ class GameInfo(val pw: PlayerView) {
 
   val dangerMap: Array[Array[Int]] = Array.ofDim(pw.mapSize, pw.mapSize)
   val powerMap: Array[Array[Int]] = Array.ofDim(pw.mapSize, pw.mapSize)
+  if(!firstTick) {
+    myEntities.map(e => (e.position, e.entityType.attack)).foreach {
+      case (Vec2Int(x, y), Some(AttackProperties(attackRange, damage, collectResource))) =>
+        cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => powerMap(xx)(yy) += damage }
+      case _ =>
+    }
 
-  myEntities.map(e => (e.position, e.entityType.attack)).foreach {
-    case (Vec2Int(x, y), Some(AttackProperties(attackRange, damage, collectResource))) =>
-      cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => powerMap(xx)(yy) += damage }
-    case _ =>
-  }
-
-  enemyEntities.map(e => (e.position, e.entityType.attack)).foreach {
-    case (Vec2Int(x, y), Some(AttackProperties(attackRange, damage, collectResource))) =>
-      cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => dangerMap(xx)(yy) += damage }
-    case _ =>
+    enemyEntities.map(e => (e.position, e.entityType.attack)).foreach {
+      case (Vec2Int(x, y), Some(AttackProperties(attackRange, damage, collectResource))) =>
+        cellsInRange(x, y, attackRange, pw.mapSize).foreach { case (xx, yy) => dangerMap(xx)(yy) += damage }
+      case _ =>
+    }
   }
 
   val regionsSize: Int = 5
@@ -152,18 +150,19 @@ class GameInfo(val pw: PlayerView) {
   val allRegions: Seq[RegionInfo] = regions.toSeq.flatten
   def region(pos: Vec2Int): RegionInfo = regions(pos.x / regionsSize)(pos.y / regionsSize)
   def region(x: Int, y: Int): RegionInfo = regions(x / regionsSize)(y / regionsSize)
+  def region(xy: (Int, Int)): RegionInfo = regions(xy.x / regionsSize)(xy.y / regionsSize)
 
-
-  for (e <- myEntities) region(e.position).my_.updateWith(e.entityType) {
-    case Some(seq) => Some(e +: seq)
-    case None => Some(Seq(e))
+  if(!firstTick) {
+    for (e <- myEntities) region(e.position).my_.updateWith(e.entityType) {
+      case Some(seq) => Some(e +: seq)
+      case None => Some(Seq(e))
+    }
+    for (e <- enemyEntities) region(e.position).enemy_.updateWith(e.entityType) {
+      case Some(seq) => Some(e +: seq)
+      case None => Some(Seq(e))
+    }
+    for (e <- resources) region(e.position).resources += e
   }
-  for (e <- enemyEntities) region(e.position).enemy_.updateWith(e.entityType) {
-    case Some(seq) => Some(e +: seq)
-    case None => Some(Seq(e))
-  }
-  for (e <- resources) region(e.position).resources += e
-
   //  def isWalkable(xy:(Int, Int)):Boolean = entitiesMap(xy).isEmpty && !reservedForMovementCells.contains(xy)
 
   /** maxDistance >= 1 */
@@ -198,7 +197,7 @@ class GameInfo(val pw: PlayerView) {
       } else {
         rectNeighbours(curx, cury, 1, mapSize, mapSize).foreach {
           neigh =>
-            if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh, avoidUnits) && !visited.contains(neigh)) {
+            if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh, avoidUnits, avoidBuildings = true) && !visited.contains(neigh)) {
               cameFrom(neigh) = (curx, cury)
               visited += neigh
               toVisit += neigh
@@ -209,11 +208,11 @@ class GameInfo(val pw: PlayerView) {
     return None
 
   }
-  def potentiallyWalkable(xy: (Int, Int), avoidUnits: Boolean = false): Boolean =
-    entitiesMap(xy).isEmpty || (!avoidUnits && isUnit(entitiesMap(xy).get.entityType))
+  def potentiallyWalkable(xy: (Int, Int), avoidUnits: Boolean, avoidBuildings:Boolean): Boolean =
+    entitiesMap(xy).isEmpty || (!avoidUnits && isUnit(entitiesMap(xy).get.entityType)) || (!avoidBuildings && isBuilding(entitiesMap(xy).get.entityType))
 
   def shortestPath(
-                    from: (Int, Int), to: (Int, Int), avoidUnits: Boolean = true
+                    from: (Int, Int), to: (Int, Int), avoidUnits: Boolean = true, avoidBuildings:Boolean = true
                   ): Option[Seq[(Int, Int)]] = {
 
     val nodeHeuristic: (Int, Int) => Int = (x, y) => distance((x, y), to)
@@ -247,7 +246,7 @@ class GameInfo(val pw: PlayerView) {
         return Some(reconstructPath())
       } else {
         val curNodeScore = knownBest(current)
-        rectNeighbours(current.x, current.y, 1, mapSize, mapSize).filter(c => potentiallyWalkable(c, avoidUnits)).foreach { neigh =>
+        rectNeighbours(current.x, current.y, 1, mapSize, mapSize).filter(c => potentiallyWalkable(c, avoidUnits, avoidBuildings)).foreach { neigh =>
           val costWithCurrentEdge = curNodeScore + 1 // + cost
           // we encountered `toNode` first time || found better way, `>` filters paths with same cost
           if (!knownBest.contains(neigh) || knownBest(neigh) > costWithCurrentEdge) {
@@ -275,7 +274,7 @@ class GameInfo(val pw: PlayerView) {
     visited += ((x, y))
 
     //cant start path from inaccessible cell
-    val (canGo, cantGo) = rectNeighbours(x, y, size, mapSize, mapSize).partition(to => potentiallyWalkable(to, avoidUnits))
+    val (canGo, cantGo) = rectNeighbours(x, y, size, mapSize, mapSize).partition(to => potentiallyWalkable(to, avoidUnits, avoidBuildings = true))
     toVisit ++= canGo
     cameFrom ++= canGo.map(c => c -> (x, y))
     visited ++= canGo
@@ -296,7 +295,7 @@ class GameInfo(val pw: PlayerView) {
 
       rectNeighbours(curx, cury, 1, mapSize, mapSize).foreach {
         neigh =>
-          if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh, avoidUnits) && !visited.contains(neigh)) {
+          if (distance(neigh, (x, y)) <= maxDistance && potentiallyWalkable(neigh, avoidUnits, avoidBuildings = true) && !visited.contains(neigh)) {
             cameFrom(neigh) = (curx, cury)
             visited += neigh
             toVisit += neigh
@@ -319,6 +318,11 @@ class GameInfo(val pw: PlayerView) {
   //  }
   //
   //
+  ///
+
+
+
+
 
   ///VARIABLES
   var myMinerals: Int = me.resource
@@ -439,4 +443,10 @@ class GameInfo(val pw: PlayerView) {
   }
 
   var paths: Set[Seq[(Int, Int)]] = Set()
+
+
+  //// END VARS
+
+  val macroState:MacroState =  MacroState(this)
+
 }

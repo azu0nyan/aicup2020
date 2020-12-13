@@ -5,7 +5,7 @@ import model.{Entity, EntityAction, MoveAction, RepairAction}
 
 object ActivateRepairLogic extends StrategyPart {
 
-  val maxRepairDistance = 12
+  val maxRepairDistance = 10
 
   val maxWorkerPerHouse = 4
 

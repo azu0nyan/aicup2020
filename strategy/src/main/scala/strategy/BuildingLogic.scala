@@ -7,6 +7,8 @@ import scala.collection.mutable
 
 object BuildingLogic extends StrategyPart {
 
+  val starterBase = 25
+  val staterBaseTick = 400
 
   val baseArea = 30
   val freePopToBuildHouse: Int = 5
@@ -17,7 +19,7 @@ object BuildingLogic extends StrategyPart {
         case (x, y) if x == y => Seq((x, x))
         case (x, y) => Seq((x, y), (y, x))
       }.filter(_ != (3, 0)) ++ ((5 until baseArea by 4)).flatMap(x => ((5 until baseArea by 4)).map(y => (x, y)))
-
+  val starterSpots = houseSpots.filter{case (x, y) => x <=starterBase && y <= starterBase}
 
   def isHouseRequired(currentPop: Int, popMax: Int): Boolean = {
     if (popMax < 15) true
@@ -54,8 +56,9 @@ object BuildingLogic extends StrategyPart {
       ).minByOption { case (s, workers) => workers.map(w => distanceFromSquare(s, size, w.position.toProd)).sum }
 
 
-  def build(u: EntityType)(implicit g: GameInfo): Option[(Int, EntityAction)] =
-    currentTurnSpot(u.size, houseSpots).orElse(findBestBuildingSpotFor(u.size, houseSpots)).flatMap {
+  def build(u: EntityType)(implicit g: GameInfo): Option[(Int, EntityAction)] = {
+    val spots = if(g.pw.currentTick > staterBaseTick) houseSpots else starterSpots
+    currentTurnSpot(u.size, spots).orElse(findBestBuildingSpotFor(u.size, spots)).flatMap {
       case (pos, Seq()) => None
       case (pos, ws) => if (distanceFromSquare(pos, u.size, ws.head.position.toProd) == 0) {
         Some(g.build(pos, ws.head, u))
@@ -63,6 +66,7 @@ object BuildingLogic extends StrategyPart {
         Some(g.move(ws.head, Vec2Int(pos.x, pos.y)))
       }
     }
+  }
 
 
   /*findCurrentTurnBuildingSpotForHouse(u.size) map {
@@ -81,6 +85,34 @@ object BuildingLogic extends StrategyPart {
   override def getActions(implicit g: GameInfo): ActionMap = {
 
     val res: mutable.Map[Int, EntityAction] = mutable.Map[Int, EntityAction]()
+
+
+    if (g.my(BUILDER_BASE).isEmpty && g.myMinerals >= BUILDER_BASE.initialCost) {
+      println(s"Trying to build BUILDER_BASE")
+      BuildingLogic.build(BUILDER_BASE) match {
+        case Some(command) =>
+          res += command
+        case None =>
+      }
+    }
+
+    if (g.my(RANGED_BASE).isEmpty && g.myMinerals >= RANGED_BASE.initialCost) {
+      println(s"Trying to build RANGED_BASE")
+      BuildingLogic.build(RANGED_BASE) match {
+        case Some(command) =>
+          res += command
+        case None =>
+      }
+    }
+
+    /*if (g.my(MELEE_BASE).isEmpty && g.myMinerals >= MELEE_BASE.initialCost) {
+      println(s"Trying to build MELEE_BASE")
+      BuildingLogic.build(MELEE_BASE) match {
+        case Some(command) =>
+          res += command
+        case None =>
+      }
+    }*/
 
 
     val housesReq = isHouseRequired(g.populationUse, g.populationMaxWithNonactive)

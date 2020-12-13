@@ -29,13 +29,13 @@ class MyStrategy {
     var res: Map[Int, EntityAction] = Map[Int, EntityAction]()
     try {
 
-      if (playerView.currentTick == 0 | !GameInfo.firstReadHappened) {
+      if (playerView.currentTick < 3 | !GameInfo.firstReadHappened) {
         GameInfo.firstRead(playerView)
         GameInfo.firstReadHappened = true
-        gameInfo = new strategy.GameInfo(playerView)
+        gameInfo = new strategy.GameInfo(playerView, true)
         res = FirstTickStrategy.getActions(playerView)
       } else {
-        gameInfo = new strategy.GameInfo(playerView)
+        gameInfo = new strategy.GameInfo(playerView, false)
         res = MacroStrategy.getActions
       }
 
@@ -59,7 +59,7 @@ class MyStrategy {
   }
 
 
-  val showVisualiser = true
+  val showVisualiser = false
   var visualiserShown = false
   var showVisualiserFollowCamera = false
 //  var debugLastAc
@@ -74,7 +74,7 @@ class MyStrategy {
     }
 
     if(playerView.currentTick > 0 && lastVisaliserTick != playerView.currentTick){
-      val gi = new strategy.GameInfo(playerView)
+      val gi = new strategy.GameInfo(playerView, false)
       val acts = MacroStrategy.getActions(gi)
       Visualiser.gameInfo = gi
       Visualiser.lastActions = acts

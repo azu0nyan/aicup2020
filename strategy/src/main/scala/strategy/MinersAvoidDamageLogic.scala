@@ -8,7 +8,7 @@ object MinersAvoidDamageLogic extends StrategyPart {
 
   override def getActions(implicit g: GameInfo): ActionMap = {
     g.nonReservedWorkers.filter(
-      b => cellsInRangeV(b.position, 2, g.mapSize).exists { case (x, y) => g.dangerMap(x)(y) > 0 }
+      b => cellsInRangeV(b.position, 2, g.mapSize).exists { case (x, y) => g.dangerMap(x)(y) > b.health / 3 }
     ).flatMap { builder =>
       val nbrs = rectNeighboursV(builder.position, 1, g.mapSize, g.mapSize)
         .filter { case (x, y) => g.canMoveToNextTurn(builder.position.toProd, (x, y))}

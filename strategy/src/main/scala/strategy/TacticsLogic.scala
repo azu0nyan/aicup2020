@@ -196,7 +196,9 @@ object TacticsLogic extends StrategyPart {
     }
 
     def turretAi(m: Entity) = {
-      rangerFight(m)
+      if(rangerFight(m).isEmpty){
+        res += (m.id -> EntityAction(None, None, Some(AttackAction(None, Some(AutoAttack(0, Seq())))), None ))
+      }
     }
 
     for (r <- g.myRangedUnits.filter(r => !g.reservedUnits.contains(r))) {
