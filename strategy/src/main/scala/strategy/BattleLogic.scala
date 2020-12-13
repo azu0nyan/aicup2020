@@ -32,11 +32,15 @@ object BattleLogic extends StrategyPart {
                   )(implicit g: GameInfo) {
 
 
+
     def center: Vec2Int = Vec2Int(min.x, min.y) + Vec2Int(g.regionsSize / 2, g.regionsSize / 2)
 
     val my_ : mutable.Map[EntityType, Seq[Entity]] = mutable.Map()
     val enemy_ : mutable.Map[EntityType, Seq[Entity]] = mutable.Map()
     var resources: mutable.Set[Entity] = mutable.Set()
+    var minable:Int = 0
+
+
 
     def my(e: EntityType): Seq[Entity] = my_.getOrElse(e, Seq())
 
@@ -79,10 +83,15 @@ object BattleLogic extends StrategyPart {
     lazy val reward: Int = this.enemy_.keys.map(e => this.enemy(e).size * rewardPerUnit(e)).sum
 
 
-    lazy val reward9: Int = (this +: neighbours9).map(_.reward).sum
-    lazy val defence9: Int = (this +: neighbours9).map(_.defenceValue).sum
-    lazy val danger9: Int = (this +: neighbours9).map(_.danger).sum
-    lazy val power9: Int = (this +: neighbours9).map(_.power).sum
+    lazy val meAndNeigbours = (this +: neighbours9)
+
+    lazy val reward9: Int = meAndNeigbours.map(_.reward).sum
+    lazy val defence9: Int = meAndNeigbours.map(_.defenceValue).sum
+    lazy val danger9: Int = meAndNeigbours.map(_.danger).sum
+    lazy val power9: Int = meAndNeigbours.map(_.power).sum
+
+    def minable9:Int  = meAndNeigbours.map(_.minable).sum
+
 
     lazy val resources9: Int = (this +: neighbours9).map(_.resources.size).sum
 
@@ -100,7 +109,7 @@ object BattleLogic extends StrategyPart {
 
   val defendRegionPrice = 16
   val defendWinRegionPrice = 8
-  val attackRegionPrice = 11
+  val attackRegionPrice = 14
   val wanderAroundPrice = 1
 
   val onWayPriceBaseValue = 4
@@ -148,9 +157,9 @@ object BattleLogic extends StrategyPart {
   }
 
   def importanceMap(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
-    if (g.macroState.noPathToEnemy && g.pw.currentTick < 200) { //we safe going macro
+    if (g.macroState.noPathToEnemy && g.pw.currentTick < 150) { //we safe going macro
       wander() ++ defend()
-    } else if(g.pw.currentTick < 200){ //game start, defend from early rushes
+    } else if(g.pw.currentTick < 150){ //game start, defend from early rushes
       val deff = defend()
       if(deff.exists(_._2 == defendRegionPrice)) {
         stayOnTheWay().map(s => (s._1, s._2 * 3 / 4))  ++ deff

@@ -4,7 +4,14 @@ import model._
 import model.EntityType
 import model.EntityType.{BUILDER_BASE, RANGED_BASE, RANGED_UNIT}
 
-case class MacroState(g:GameInfo) {
+object Storage{
+  var firstRead = true
+  val readEvery = 10
+  var state:MacroState = null
+}
+
+
+case class MacroState()(implicit g:GameInfo) {
 
   val ourTerritory = 50
 
@@ -15,11 +22,11 @@ case class MacroState(g:GameInfo) {
 
   val bases:Map[Player, (Int, Int)] = g.pw.players.map(p => (p, g.entitiesByPlayerIdAndType(p.id,RANGED_BASE ))).filter(_._2.nonEmpty)
     .map{case (p, b) => (p, rectNeighboursV(b.head.position, b.head.entityType.size, g.mapSize, g.mapSize)
-      .filter(c => g.potentiallyWalkable(c, false, false)).minBy(c => distance(c, (10, 10)))    )
+      .filter(c => Pathfinding.potentiallyWalkable(c, false, false)).minBy(c => distance(c, (10, 10)))    )
     }.toMap
 
-  val pathsToBases:Map[Player, Seq[(Int, Int)]] = bases.map{case (p, b) =>
-    (p, g.shortestPath((10, 10), (b), false, false))
+  val pathsToBases:Map[Player, Seq[(Int, Int)]] = if(g.pw.currentTick < 20) Map() else bases.map{case (p, b) =>
+    (p, Pathfinding.shortestPath((10, 10), (b), false, false))
   }.toMap.filter(_._2.nonEmpty).map{case (pl, p) => (pl, p.get)}
 
   pathsToBases.values.foreach(p => g.paths += p)

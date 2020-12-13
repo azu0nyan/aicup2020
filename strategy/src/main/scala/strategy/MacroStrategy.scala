@@ -25,6 +25,7 @@ object MacroStrategy extends StrategyPart {
     val mTime = doStep{res = combineOnePr(res, MiningLogic.getActions)}
     val pTime = doStep{res = combineOnePr(res, ProductionLogic.getActions)}
     val baTime = doStep{res = combineOnePr(res, BattleLogic.getActions)}
+     doStep{res = combineOnePr(res, SendWorkersAttackAtEnd.getActions)}
 
     println(s"tact $tTime act $aTime mavoid $madTime build $bTime mine $mTime prod $pTime bat $baTime")
     res

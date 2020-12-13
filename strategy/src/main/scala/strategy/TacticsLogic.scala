@@ -76,7 +76,7 @@ object TacticsLogic extends StrategyPart {
 
 
     def gotToClosest(r: Entity, maxRange: Int, filter: Entity => Boolean): Option[(Int, EntityAction, Entity)] =
-      g.findClosestReachable(r.position.x, r.position.y, filter, maxRange).flatMap{
+      Pathfinding.findClosestReachable(r.position.x, r.position.y, filter, maxRange).flatMap{
         case (_, Seq()) => None
         case (entity, path) =>
           g.paths += path
@@ -89,7 +89,7 @@ object TacticsLogic extends StrategyPart {
 
 
     def gotToClosestFriend(r: Entity, maxRange: Int, types: Seq[EntityType]) =
-      g.findClosestReachable(r.position.x, r.position.y, x => x != r && !x.isEnemy && types.contains(x.entityType), maxRange)
+      Pathfinding.findClosestReachable(r.position.x, r.position.y, x => x != r && !x.isEnemy && types.contains(x.entityType), maxRange)
         .filter(x => x._1.position.distanceTo(r.position) != 1).map { //we already close to closest
         case (entity, path) =>
           g.paths += path
