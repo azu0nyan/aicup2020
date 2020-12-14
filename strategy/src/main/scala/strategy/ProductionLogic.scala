@@ -198,9 +198,9 @@ object ProductionLogic extends StrategyPart {
 
     var prodQueue:Seq[EntityType] = Seq()//productionQueueMatchStrongest ++ productionQueueForRecommendedComposition
 
-    if(g.macroState.noPathToEnemy && g.myWorkers.size < maxWorkersWhenEnclosed && canProduce(BUILDER_UNIT)){
-      prodQueue = BUILDER_UNIT +: prodQueue
-    }
+//    if(g.macroState.noPathToEnemy && g.myWorkers.size < maxWorkersWhenEnclosed && canProduce(BUILDER_UNIT)){
+//      prodQueue = BUILDER_UNIT +: prodQueue
+//    }
 
     if(g.macroState.ourPowerAtBase * 1.2 < g.macroState.enemyPowerAtOurBase ) {
       if (g.myMeleeUnits.size * meleeToArchersRatio < g.myRangedUnits.size * (1f - meleeToArchersRatio)) {

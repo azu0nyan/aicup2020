@@ -28,7 +28,6 @@ object GameInfo {
 
 class GameInfo(val pw: PlayerView, firstTick:Boolean) {
 
-
   val mapSize: Int = pw.mapSize
 
 
@@ -91,12 +90,24 @@ class GameInfo(val pw: PlayerView, firstTick:Boolean) {
   val cantBuildArea: Array[Array[Boolean]] = Array.fill[Boolean](mapSize, mapSize)(false)
 
   pw.entities.foreach(e => {
+    val minx = math.max(0, e.position.x - 1)
+    val maxx = math.min(e.position.x + e.entityType.size, mapSize -1)
+    val miny = math.max(0, e.position.y - 1)
+    val maxy = math.min(e.position.y + e.entityType.size, mapSize -1)
     if (isProductionBuilding(e.entityType)) {
-      for (i <- (e.position.x - 1) until (e.position.x + e.entityType.size + 1); j <- (e.position.y - 1) until (e.position.y + e.entityType.size + 1)) {
+      val minx = math.max(0, e.position.x - 1)
+      val maxx = math.min(e.position.x + e.entityType.size, mapSize -1)
+      val miny = math.max(0, e.position.y - 1)
+      val maxy = math.min(e.position.y + e.entityType.size, mapSize -1)
+      for (i <- minx to maxx; j <- miny to maxy) {
         cantBuildArea(i)(j) = true
       }
     } else {
-      for (i <- e.position.x until (e.position.x + e.entityType.size); j <- e.position.y until (e.position.y + e.entityType.size)) {
+      val minx = math.max(0, e.position.x )
+      val maxx = math.min(e.position.x + e.entityType.size -1, mapSize -1)
+      val miny = math.max(0, e.position.y )
+      val maxy = math.min(e.position.y + e.entityType.size -1 , mapSize -1)
+      for (i <- minx to maxx; j <- miny to maxy) {
         cantBuildArea(i)(j) = true
       }
     }

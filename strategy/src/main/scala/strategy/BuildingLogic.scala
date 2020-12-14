@@ -22,7 +22,9 @@ object BuildingLogic extends StrategyPart {
   val starterSpots = houseSpots.filter{case (x, y) => x <=starterBase && y <= starterBase}
 
   def isHouseRequired(currentPop: Int, popMax: Int): Boolean = {
-    if (popMax < 15) true
+    if (popMax == 0) true
+    else if (popMax == 5) currentPop >= 5
+    else if (popMax == 10) currentPop >= 10
     else if (popMax == 15) currentPop >= 14
     else if (popMax == 20) currentPop >= 18
     else if (popMax == 25) currentPop >= 23

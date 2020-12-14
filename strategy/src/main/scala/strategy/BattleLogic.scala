@@ -128,7 +128,8 @@ object BattleLogic extends StrategyPart {
   }
 
   def wander()(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
-    g.allRegions.filter(r => r.freeCells >= minFreeCellToWander && distance(r.id, (0, 0)) == 6).map(r => (r, wanderAroundPrice))
+    g.allRegions.filter(r => r.power9 ==0  && r.danger9 == 0).map(r => (r, wanderAroundPrice))
+//    g.allRegions.filter(r => r.freeCells >= minFreeCellToWander && distance(r.id, (0, 0)) == 6).map(r => (r, wanderAroundPrice))
   }
 
   def attack()(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
@@ -137,7 +138,7 @@ object BattleLogic extends StrategyPart {
       allTargets.drop(allTargets.size / 2).map(x => (x, attackRegionPrice))
   }
 
-  def stayOnTheWay()(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
+  /*def stayOnTheWay()(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
     val onEnemyWay = g.macroState.pathsToBases.toSeq.filter(p => p._1 != g.me && p._2.size <= shortPathMaxLength).sortBy(_._2.size).map { case (p, path) => {
       val pathPart = path.drop(path.length / 4).take(path.length / 3)
       val regions = pathPart.map(c => g.region(c)).foldLeft(Seq[RegionInfo]()) {
@@ -154,25 +155,23 @@ object BattleLogic extends StrategyPart {
     }.take(2).sortBy(reg => -reg.power9)
 
     onEnemyWay.zipWithIndex.map { case (reg, id) => (reg, onWayPriceBaseValue * (id + 1)) }
-  }
+  }*/
 
   def importanceMap(implicit g: GameInfo): Seq[(RegionInfo, Int)] = {
-    if (g.macroState.noPathToEnemy && g.pw.currentTick < 150) { //we safe going macro
-      wander() ++ defend()
-    } else if(g.pw.currentTick < 150){ //game start, defend from early rushes
+    val res =  if(g.pw.currentTick < 150){ //game start, defend from early rushes
       val deff = defend()
       if(deff.exists(_._2 == defendRegionPrice)) {
-        stayOnTheWay().map(s => (s._1, s._2 * 3 / 4))  ++ deff
+        deff
       } else {
-        stayOnTheWay() ++ deff
+        deff ++ wander()
       }
     }else  if(g.pw.currentTick < 400){ //game start, defend from early rushes
         val deff = defend()
-        if(deff.exists(_._2 == defendRegionPrice)) {
-          stayOnTheWay().map(s => (s._1, s._2 * 3 / 4))  ++ deff
-        } else {
-          stayOnTheWay() ++ attack()  ++ deff
-        }
+      if(deff.exists(_._2 == defendRegionPrice)) {
+        deff ++ wander()
+      } else {
+        deff ++ wander() ++ attack()
+      }
     }else {
       val deff = defend()
       if(deff.exists(_._2 == defendRegionPrice)) {
@@ -181,6 +180,9 @@ object BattleLogic extends StrategyPart {
          attack()  ++ deff
       }
     }
+
+    if(res.isEmpty) wander()
+    else res
 
     //    val p1RushDistance:Option[Int] = g.shortestPath()
 
@@ -208,7 +210,11 @@ object BattleLogic extends StrategyPart {
     val res = Array.tabulate[Int](g.regionInSide, g.regionInSide)((x, y) => Int.MinValue)
     val queue: mutable.PriorityQueue[(Int, Int, Int)] = mutable.PriorityQueue()(Ordering.by(_._3))
 
-    importanceMap.foreach {
+    val m = importanceMap
+
+    importantRegions = m.map(_._1).toSet
+
+    m.foreach {
       case (info, i) =>
         queue.addOne(info.id.x, info.id.y, i)
     }
@@ -233,7 +239,7 @@ object BattleLogic extends StrategyPart {
   override def getActions(implicit g: GameInfo): ActionMap = {
 
 
-    importantRegions = importanceMap.map(_._1).toSet
+
     //defence
     //    importantRegions = g.allRegions.map(r => (r, r.neighbours9.map(_.danger).sum, r.neighbours9.map(_.power).sum, r.neighbours9.map(_.defenceValue).sum))
     //      .filter(_._4 > 0).filter(_._2 > 0).filter(x => x._2 >= x._3).sortBy(-_._4).map(_._1) toSet

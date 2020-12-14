@@ -25,13 +25,13 @@ case class MacroState()(implicit g:GameInfo) {
       .filter(c => Pathfinding.potentiallyWalkable(c, false, false)).minBy(c => distance(c, (10, 10)))    )
     }.toMap
 
-  val pathsToBases:Map[Player, Seq[(Int, Int)]] = if(g.pw.currentTick < 20) Map() else bases.map{case (p, b) =>
+ /* val pathsToBases:Map[Player, Seq[(Int, Int)]] = if(g.pw.currentTick < 20) Map() else bases.map{case (p, b) =>
     (p, Pathfinding.shortestPath((10, 10), (b), false, false))
   }.toMap.filter(_._2.nonEmpty).map{case (pl, p) => (pl, p.get)}
 
   pathsToBases.values.foreach(p => g.paths += p)
   val noPathToEnemy: Boolean = pathsToBases.isEmpty || pathsToBases.keys.toSet == Set(g.me)
-
+*/
   val ourRegions = g.regions.flatten.filter(r => r.center.x < ourTerritory && r.center.y < ourTerritory)
 
   val ourPowerAtBase = ourRegions.map(_.power).sum
